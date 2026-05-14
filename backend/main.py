@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
+import uvicorn
 
 app = FastAPI(
     title="Inventarverwaltung API",
@@ -109,6 +110,7 @@ def update_item(item_id: int, updated_item: InventarItem):
     for index, item in enumerate(inventar):
         if item["id"] == item_id:
             inventar[index] = updated_item.model_dump()
+
             return {
                 "message": "Gerät wurde erfolgreich aktualisiert",
                 "item": updated_item
@@ -121,6 +123,7 @@ def delete_item(item_id: int):
     for index, item in enumerate(inventar):
         if item["id"] == item_id:
             deleted_item = inventar.pop(index)
+
             return {
                 "message": "Gerät wurde gelöscht",
                 "item": deleted_item
@@ -142,6 +145,5 @@ def get_dashboard():
         "defekt": defekt
     }
 
-    if __name__ == "__main__":
-    import uvicorn
+if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
