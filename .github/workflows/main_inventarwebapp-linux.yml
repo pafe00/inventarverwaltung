@@ -73,4 +73,5 @@ jobs:
         with:
           app-name: 'inventarwebapp-linux'
           slot-name: 'Production'
-          
+          package: .
+          startup-command: "python backend/main.py"
