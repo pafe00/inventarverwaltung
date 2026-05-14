@@ -1,49 +1,47 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Python app to Azure Web App - inventarwebapp
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+
+workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: windows-latest
+
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python version
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ''
+          python-version: '3.12'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
-          python -m venv env
-          .\\env\\Scripts\\activate
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
 
-      - name: Zip the application files
-        run: Compress-Archive .\\* app.zip
-      
+      - name: Zip artifact for deployment
+        run: |
+          Compress-Archive -Path backend/* -DestinationPath app.zip
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_D178CFAFA1CE4FEC97C7D76007FADE9C }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D0619F70BA2847EC8DC91F81E4181EB7 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B82D7348D1F045BCA651108D1C0227D1 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
 
-      - name: 'Deploy to Azure Web App'
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'inventarwebapp'
-          slot-name: 'Production'
-          package: '.\\app.zip'
-          
+          app-name: inventarwebapp
+          slot-name: Production
+          package: ./app.zip
