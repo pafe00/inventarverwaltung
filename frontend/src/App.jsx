@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   Home, Monitor, MapPin, BarChart3, Settings, Bell, Search, Plus,
-  Trash2, CheckCircle, Clock3, AlertTriangle, Laptop, Keyboard,
-  Server, ChevronRight, Package
+  Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
+  Keyboard, Server, ChevronRight, Package
 } from "lucide-react"
 
 const API_URL =
@@ -12,8 +12,11 @@ export default function App() {
   const [inventar, setInventar] = useState([])
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [activePage, setActivePage] = useState("Dashboard")
+  const [statusFilter, setStatusFilter] = useState("alle")
 
-  const [form, setForm] = useState({
+  const emptyForm = {
     id: "",
     name: "",
     kategorie: "Laptop",
@@ -22,7 +25,9 @@ export default function App() {
     standort: "",
     status: "verfügbar",
     bemerkung: "",
-  })
+  }
+
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
     ladeInventar()
@@ -38,6 +43,27 @@ export default function App() {
     }
   }
 
+  function openAddForm() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
+
+  function openEditForm(item) {
+    setEditingId(item.id)
+    setForm({
+      id: item.id,
+      name: item.name || "",
+      kategorie: item.kategorie || "",
+      hersteller: item.hersteller || "",
+      seriennummer: item.seriennummer || "",
+      standort: item.standort || "",
+      status: item.status || "verfügbar",
+      bemerkung: item.bemerkung || "",
+    })
+    setShowForm(true)
+  }
+
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
@@ -45,7 +71,7 @@ export default function App() {
   async function handleSubmit(e) {
     e.preventDefault()
 
-    const neuesItem = {
+    const item = {
       id: Number(form.id),
       name: form.name,
       kategorie: form.kategorie,
@@ -56,29 +82,25 @@ export default function App() {
       bemerkung: form.bemerkung,
     }
 
-    const res = await fetch(`${API_URL}/api/inventar`, {
-      method: "POST",
+    const method = editingId ? "PUT" : "POST"
+    const url = editingId
+      ? `${API_URL}/api/inventar/${editingId}`
+      : `${API_URL}/api/inventar`
+
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(neuesItem),
+      body: JSON.stringify(item),
     })
 
     if (!res.ok) {
-      alert("Gerät konnte nicht gespeichert werden.")
+      alert("Speichern fehlgeschlagen. Prüfe, ob dein Backend PUT unterstützt.")
       return
     }
 
     setShowForm(false)
-    setForm({
-      id: "",
-      name: "",
-      kategorie: "Laptop",
-      hersteller: "",
-      seriennummer: "",
-      standort: "",
-      status: "verfügbar",
-      bemerkung: "",
-    })
-
+    setEditingId(null)
+    setForm(emptyForm)
     ladeInventar()
   }
 
@@ -97,12 +119,29 @@ export default function App() {
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const gefiltert = useMemo(() => {
-    return inventar.filter((x) =>
-      `${x.name} ${x.kategorie} ${x.hersteller} ${x.standort}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    )
-  }, [inventar, search])
+    return inventar.filter((x) => {
+      const matchesSearch =
+        `${x.name} ${x.kategorie} ${x.hersteller} ${x.standort}`
+          .toLowerCase()
+          .includes(search.toLowerCase())
+
+      const matchesStatus =
+        statusFilter === "alle" ? true : x.status === statusFilter
+
+      return matchesSearch && matchesStatus
+    })
+  }, [inventar, search, statusFilter])
+
+  const standorte = useMemo(() => {
+    const gruppiert = {}
+
+    inventar.forEach((item) => {
+      const ort = item.standort || "Unbekannt"
+      gruppiert[ort] = (gruppiert[ort] || 0) + 1
+    })
+
+    return Object.entries(gruppiert)
+  }, [inventar])
 
   return (
     <>
@@ -115,6 +154,7 @@ export default function App() {
               <div className="brandIcon">
                 <Package size={30} />
               </div>
+
               <div>
                 <h2>TEKO Inventar</h2>
                 <p>Asset Management</p>
@@ -122,11 +162,11 @@ export default function App() {
             </div>
 
             <nav>
-              <Nav icon={<Home />} text="Dashboard" active />
-              <Nav icon={<Monitor />} text="Inventar" />
-              <Nav icon={<MapPin />} text="Standorte" />
-              <Nav icon={<BarChart3 />} text="Berichte" />
-              <Nav icon={<Settings />} text="Einstellungen" />
+              <Nav icon={<Home />} text="Dashboard" activePage={activePage} onClick={setActivePage} />
+              <Nav icon={<Monitor />} text="Inventar" activePage={activePage} onClick={setActivePage} />
+              <Nav icon={<MapPin />} text="Standorte" activePage={activePage} onClick={setActivePage} />
+              <Nav icon={<BarChart3 />} text="Berichte" activePage={activePage} onClick={setActivePage} />
+              <Nav icon={<Settings />} text="Einstellungen" activePage={activePage} onClick={setActivePage} />
             </nav>
           </div>
 
@@ -143,7 +183,7 @@ export default function App() {
         <main className="main">
           <header className="top">
             <div>
-              <h1>Willkommen zurück 👋</h1>
+              <h1>{activePage}</h1>
               <p>Cloudbasierte Inventarverwaltung</p>
             </div>
 
@@ -163,84 +203,120 @@ export default function App() {
             </div>
           </header>
 
-          <section className="cards">
-            <Card color="blue" icon={<Monitor />} title="Gesamtgeräte" value={inventar.length} text="Alle Geräte im System" />
-            <Card color="green" icon={<CheckCircle />} title="Verfügbar" value={verfuegbar} text="Bereit zur Nutzung" />
-            <Card color="orange" icon={<Clock3 />} title="Ausgeliehen" value={ausgeliehen} text="Aktuell ausgeliehen" />
-            <Card color="red" icon={<AlertTriangle />} title="Defekt" value={defekt} text="Benötigen Reparatur" />
-          </section>
+          {(activePage === "Dashboard" || activePage === "Inventar") && (
+            <>
+              <section className="cards">
+                <Card
+                  color="blue"
+                  icon={<Monitor />}
+                  title="Gesamtgeräte"
+                  value={inventar.length}
+                  text="Alle Geräte im System"
+                  onClick={() => setStatusFilter("alle")}
+                  active={statusFilter === "alle"}
+                />
 
-          <section className="tableBox">
-            <div className="tableHead">
-              <div>
-                <h2>Inventarliste</h2>
-                <p>Übersicht aller Geräte im System</p>
+                <Card
+                  color="green"
+                  icon={<CheckCircle />}
+                  title="Verfügbar"
+                  value={verfuegbar}
+                  text="Bereit zur Nutzung"
+                  onClick={() => setStatusFilter("verfügbar")}
+                  active={statusFilter === "verfügbar"}
+                />
+
+                <Card
+                  color="orange"
+                  icon={<Clock3 />}
+                  title="Ausgeliehen"
+                  value={ausgeliehen}
+                  text="Aktuell ausgeliehen"
+                  onClick={() => setStatusFilter("ausgeliehen")}
+                  active={statusFilter === "ausgeliehen"}
+                />
+
+                <Card
+                  color="red"
+                  icon={<AlertTriangle />}
+                  title="Defekt"
+                  value={defekt}
+                  text="Benötigen Reparatur"
+                  onClick={() => setStatusFilter("defekt")}
+                  active={statusFilter === "defekt"}
+                />
+              </section>
+
+              <InventarTabelle
+                daten={gefiltert}
+                openAddForm={openAddForm}
+                openEditForm={openEditForm}
+                loeschen={loeschen}
+              />
+            </>
+          )}
+
+          {activePage === "Standorte" && (
+            <section className="tableBox">
+              <div className="tableHead">
+                <div>
+                  <h2>Standorte</h2>
+                  <p>Übersicht aller Geräte nach Standort</p>
+                </div>
               </div>
 
-              <button className="add" type="button" onClick={() => setShowForm(true)}>
-                <Plus size={20} />
-                Gerät hinzufügen
-              </button>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Gerät</th>
-                  <th>Kategorie</th>
-                  <th>Hersteller</th>
-                  <th>Standort</th>
-                  <th>Status</th>
-                  <th>Aktion</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {gefiltert.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.id}</td>
-
-                    <td>
-                      <div className="device">
-                        <div className="deviceIcon">{getIcon(item.kategorie)}</div>
-                        <div>
-                          <strong>{item.name}</strong>
-                          <p>SN: {item.seriennummer || "-"}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>{item.kategorie}</td>
-                    <td>{item.hersteller}</td>
-                    <td>{item.standort}</td>
-                    <td>
-                      <span className={`status ${getStatus(item.status)}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="delete" onClick={() => loeschen(item.id)}>
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Standort</th>
+                    <th>Anzahl Geräte</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+                </thead>
+                <tbody>
+                  {standorte.map(([ort, anzahl]) => (
+                    <tr key={ort}>
+                      <td>{ort}</td>
+                      <td>{anzahl}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {activePage === "Berichte" && (
+            <section className="tableBox report">
+              <h2>Berichte</h2>
+              <p>Gesamtgeräte: {inventar.length}</p>
+              <p>Verfügbar: {verfuegbar}</p>
+              <p>Ausgeliehen: {ausgeliehen}</p>
+              <p>Defekt: {defekt}</p>
+            </section>
+          )}
+
+          {activePage === "Einstellungen" && (
+            <section className="tableBox report">
+              <h2>Einstellungen</h2>
+              <p>API-Verbindung:</p>
+              <code>{API_URL}</code>
+              <br />
+              <button className="add small" onClick={ladeInventar}>
+                Daten neu laden
+              </button>
+            </section>
+          )}
         </main>
 
         {showForm && (
           <div className="modalBg">
             <form className="modal" onSubmit={handleSubmit}>
               <div className="modalTop">
-                <h2>Gerät hinzufügen</h2>
+                <h2>{editingId ? "Gerät bearbeiten" : "Gerät hinzufügen"}</h2>
                 <button type="button" onClick={() => setShowForm(false)}>×</button>
               </div>
 
               <div className="formGrid">
-                <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required />
+                <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required disabled={!!editingId} />
                 <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
                 <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
                 <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
@@ -256,7 +332,9 @@ export default function App() {
                 <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
               </div>
 
-              <button className="save" type="submit">Speichern</button>
+              <button className="save" type="submit">
+                {editingId ? "Änderungen speichern" : "Speichern"}
+              </button>
             </form>
           </div>
         )}
@@ -265,25 +343,98 @@ export default function App() {
   )
 }
 
-function Nav({ icon, text, active }) {
+function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
   return (
-    <button className={active ? "nav active" : "nav"}>
+    <section className="tableBox">
+      <div className="tableHead">
+        <div>
+          <h2>Inventarliste</h2>
+          <p>Übersicht aller Geräte im System</p>
+        </div>
+
+        <button className="add" type="button" onClick={openAddForm}>
+          <Plus size={20} />
+          Gerät hinzufügen
+        </button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Gerät</th>
+            <th>Kategorie</th>
+            <th>Hersteller</th>
+            <th>Standort</th>
+            <th>Status</th>
+            <th>Aktion</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {daten.map((item) => (
+            <tr key={item.id}>
+              <td>{item.id}</td>
+
+              <td>
+                <div className="device">
+                  <div className="deviceIcon">{getIcon(item.kategorie)}</div>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <p>SN: {item.seriennummer || "-"}</p>
+                  </div>
+                </div>
+              </td>
+
+              <td>{item.kategorie}</td>
+              <td>{item.hersteller}</td>
+              <td>{item.standort}</td>
+              <td>
+                <span className={`status ${getStatus(item.status)}`}>
+                  {item.status}
+                </span>
+              </td>
+              <td>
+                <div className="actions">
+                  <button className="edit" onClick={() => openEditForm(item)}>
+                    <Pencil size={17} />
+                  </button>
+
+                  <button className="delete" onClick={() => loeschen(item.id)}>
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
+function Nav({ icon, text, activePage, onClick }) {
+  return (
+    <button
+      className={activePage === text ? "nav active" : "nav"}
+      onClick={() => onClick(text)}
+    >
       {icon}
       <span>{text}</span>
     </button>
   )
 }
 
-function Card({ icon, title, value, text, color }) {
+function Card({ icon, title, value, text, color, onClick, active }) {
   return (
-    <div className="card">
+    <button className={active ? "card activeCard" : "card"} onClick={onClick}>
       <div className={`cardIcon ${color}`}>{icon}</div>
       <div>
         <p>{title}</p>
         <h2>{value}</h2>
         <span className={color}>{text}</span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -481,12 +632,23 @@ button {
 .card {
   min-height: 180px;
   background: white;
+  border: 0;
   border-radius: 16px;
   padding: 32px 28px;
   display: flex;
   align-items: center;
   gap: 28px;
+  text-align: left;
+  cursor: pointer;
   box-shadow: 0 12px 32px rgba(15,23,42,.07);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+}
+
+.activeCard {
+  outline: 3px solid #2563eb;
 }
 
 .cardIcon {
@@ -562,6 +724,11 @@ button {
   cursor: pointer;
 }
 
+.add.small {
+  margin-top: 20px;
+  width: fit-content;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -632,14 +799,47 @@ td {
   color: #dc2626;
 }
 
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.edit,
 .delete {
   width: 42px;
   height: 42px;
   border-radius: 10px;
   border: 1px solid #e5eaf2;
   background: white;
-  color: #ef4444;
   cursor: pointer;
+}
+
+.edit {
+  color: #2563eb;
+}
+
+.delete {
+  color: #ef4444;
+}
+
+.report {
+  padding: 30px;
+}
+
+.report h2 {
+  margin-top: 0;
+}
+
+.report p {
+  font-size: 18px;
+}
+
+.report code {
+  display: inline-block;
+  background: #f1f5f9;
+  padding: 14px;
+  border-radius: 10px;
+  margin-top: 8px;
 }
 
 .modalBg {
@@ -695,6 +895,11 @@ td {
   padding: 0 14px;
   font-size: 15px;
   outline: 0;
+}
+
+.formGrid input:disabled {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .save {
