@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
 import uvicorn
+import pyodbc
 
 app = FastAPI(
     title="Inventarverwaltung API",
@@ -18,6 +19,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+connection_string = (
+    "Driver={ODBC Driver 18 for SQL Server};"
+    "Server=tcp:inventarsqlg6.database.windows.net,1433;"
+    "Database=inventarsqlg6;"
+    "Uid=inventaradmin;"
+    "Pwd=Sommer2026$"
+    "Encrypt=yes;"
+    "TrustServerCertificate=no;"
+    "Connection Timeout=30;"
+)
+
+connection = pyodbc.connect(connection_string)
+cursor = connection.cursor()
+
+cursor.execute("""
+IF NOT EXISTS (
+    SELECT * FROM sysobjects
+    WHERE name='inventar' AND xtype='U'
+)
+CREATE TABLE inventar (
+    id INT PRIMARY KEY,
+    name NVARCHAR(255) NOT NULL,
+    kategorie NVARCHAR(255) NOT NULL,
+    hersteller NVARCHAR(255),
+    seriennummer NVARCHAR(255),
+    standort NVARCHAR(255) NOT NULL,
+    status NVARCHAR(50) NOT NULL,
+    bemerkung NVARCHAR(500)
+)
+""")
+
+connection.commit()
+
 class InventarItem(BaseModel):
     id: int
     name: str = Field(..., min_length=2)
@@ -28,118 +62,200 @@ class InventarItem(BaseModel):
     status: str = Field(..., pattern="^(verfügbar|ausgeliehen|defekt)$")
     bemerkung: Optional[str] = None
 
-inventar = [
-    {
-        "id": 1,
-        "name": "Laptop Dell Latitude",
-        "kategorie": "Laptop",
-        "hersteller": "Dell",
-        "seriennummer": "DL-1001",
-        "standort": "Olten",
-        "status": "verfügbar",
-        "bemerkung": "Einsatzbereit"
-    },
-    {
-        "id": 2,
-        "name": "Monitor Samsung",
-        "kategorie": "Monitor",
-        "hersteller": "Samsung",
-        "seriennummer": "SM-2001",
-        "standort": "Bern",
-        "status": "ausgeliehen",
-        "bemerkung": "Bei Benutzer ausgeliehen"
-    },
-    {
-        "id": 3,
-        "name": "Tastatur Logitech",
-        "kategorie": "Zubehör",
-        "hersteller": "Logitech",
-        "seriennummer": "LG-3001",
-        "standort": "Zürich",
-        "status": "defekt",
-        "bemerkung": "Taste defekt"
-    }
-]
-
 @app.get("/")
 def root():
     return {"message": "Inventarverwaltung Backend läuft"}
 
 @app.get("/api/inventar")
-def get_inventar(
-    status: Optional[str] = None,
-    standort: Optional[str] = None,
-    kategorie: Optional[str] = None
-):
-    result = inventar
+def get_inventar():
 
-    if status:
-        result = [item for item in result if item["status"].lower() == status.lower()]
+    cursor.execute("""
+        SELECT
+            id,
+            name,
+            kategorie,
+            hersteller,
+            seriennummer,
+            standort,
+            status,
+            bemerkung
+        FROM inventar
+    """)
 
-    if standort:
-        result = [item for item in result if item["standort"].lower() == standort.lower()]
+    rows = cursor.fetchall()
 
-    if kategorie:
-        result = [item for item in result if item["kategorie"].lower() == kategorie.lower()]
+    inventar = []
 
-    return result
+    for row in rows:
+        inventar.append({
+            "id": row[0],
+            "name": row[1],
+            "kategorie": row[2],
+            "hersteller": row[3],
+            "seriennummer": row[4],
+            "standort": row[5],
+            "status": row[6],
+            "bemerkung": row[7]
+        })
+
+    return inventar
 
 @app.get("/api/inventar/{item_id}")
 def get_item(item_id: int):
-    for item in inventar:
-        if item["id"] == item_id:
-            return item
 
-    raise HTTPException(status_code=404, detail="Gerät nicht gefunden")
+    cursor.execute("""
+        SELECT
+            id,
+            name,
+            kategorie,
+            hersteller,
+            seriennummer,
+            standort,
+            status,
+            bemerkung
+        FROM inventar
+        WHERE id = ?
+    """, item_id)
+
+    row = cursor.fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Gerät nicht gefunden"
+        )
+
+    return {
+        "id": row[0],
+        "name": row[1],
+        "kategorie": row[2],
+        "hersteller": row[3],
+        "seriennummer": row[4],
+        "standort": row[5],
+        "status": row[6],
+        "bemerkung": row[7]
+    }
 
 @app.post("/api/inventar")
 def create_item(item: InventarItem):
-    for existing_item in inventar:
-        if existing_item["id"] == item.id:
-            raise HTTPException(status_code=400, detail="ID existiert bereits")
 
-    inventar.append(item.model_dump())
+    cursor.execute(
+        "SELECT id FROM inventar WHERE id = ?",
+        item.id
+    )
+
+    existing = cursor.fetchone()
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="ID existiert bereits"
+        )
+
+    cursor.execute("""
+        INSERT INTO inventar (
+            id,
+            name,
+            kategorie,
+            hersteller,
+            seriennummer,
+            standort,
+            status,
+            bemerkung
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        item.id,
+        item.name,
+        item.kategorie,
+        item.hersteller,
+        item.seriennummer,
+        item.standort,
+        item.status,
+        item.bemerkung
+    )
+
+    connection.commit()
 
     return {
-        "message": "Gerät wurde erfolgreich erfasst",
+        "message": "Gerät wurde erfolgreich erstellt",
         "item": item
     }
 
 @app.put("/api/inventar/{item_id}")
-def update_item(item_id: int, updated_item: InventarItem):
-    for index, item in enumerate(inventar):
-        if item["id"] == item_id:
-            inventar[index] = updated_item.model_dump()
+def update_item(item_id: int, item: InventarItem):
 
-            return {
-                "message": "Gerät wurde erfolgreich aktualisiert",
-                "item": updated_item
-            }
+    cursor.execute("""
+        UPDATE inventar
+        SET
+            name = ?,
+            kategorie = ?,
+            hersteller = ?,
+            seriennummer = ?,
+            standort = ?,
+            status = ?,
+            bemerkung = ?
+        WHERE id = ?
+    """,
+        item.name,
+        item.kategorie,
+        item.hersteller,
+        item.seriennummer,
+        item.standort,
+        item.status,
+        item.bemerkung,
+        item_id
+    )
 
-    raise HTTPException(status_code=404, detail="Gerät nicht gefunden")
+    connection.commit()
+
+    return {
+        "message": "Gerät wurde aktualisiert"
+    }
 
 @app.delete("/api/inventar/{item_id}")
 def delete_item(item_id: int):
-    for index, item in enumerate(inventar):
-        if item["id"] == item_id:
-            deleted_item = inventar.pop(index)
 
-            return {
-                "message": "Gerät wurde gelöscht",
-                "item": deleted_item
-            }
+    cursor.execute(
+        "DELETE FROM inventar WHERE id = ?",
+        item_id
+    )
 
-    raise HTTPException(status_code=404, detail="Gerät nicht gefunden")
+    connection.commit()
+
+    return {
+        "message": "Gerät wurde gelöscht"
+    }
 
 @app.get("/api/dashboard")
 def get_dashboard():
-    total = len(inventar)
-    verfuegbar = len([item for item in inventar if item["status"] == "verfügbar"])
-    ausgeliehen = len([item for item in inventar if item["status"] == "ausgeliehen"])
-    defekt = len([item for item in inventar if item["status"] == "defekt"])
+
+    cursor.execute("SELECT COUNT(*) FROM inventar")
+    gesamt = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM inventar
+        WHERE status = 'verfügbar'
+    """)
+    verfuegbar = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM inventar
+        WHERE status = 'ausgeliehen'
+    """)
+    ausgeliehen = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM inventar
+        WHERE status = 'defekt'
+    """)
+    defekt = cursor.fetchone()[0]
 
     return {
-        "gesamt": total,
+        "gesamt": gesamt,
         "verfügbar": verfuegbar,
         "ausgeliehen": ausgeliehen,
         "defekt": defekt
