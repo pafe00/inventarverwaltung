@@ -6,7 +6,7 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   const API_URL =
-    'https://inventarwebapp-linux-ejb2a7cpcdchhppg9.germanywestcentral-01.azurewebsites.net'
+    'https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net/'
 
   useEffect(() => {
     fetch(`${API_URL}/api/inventar`)
