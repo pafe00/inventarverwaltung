@@ -7,6 +7,7 @@ function App() {
 
   const [inventar, setInventar] = useState([])
   const [loading, setLoading] = useState(true)
+  const [suche, setSuche] = useState('')
 
   const [form, setForm] = useState({
     id: '',
@@ -54,9 +55,7 @@ function App() {
 
     const response = await fetch(`${API_URL}/api/inventar`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(neuesItem),
     })
 
@@ -80,9 +79,7 @@ function App() {
   }
 
   const loeschen = async (id) => {
-    const bestaetigung = confirm('Gerät wirklich löschen?')
-
-    if (!bestaetigung) return
+    if (!confirm('Gerät wirklich löschen?')) return
 
     await fetch(`${API_URL}/api/inventar/${id}`, {
       method: 'DELETE',
@@ -91,155 +88,153 @@ function App() {
     ladeInventar()
   }
 
+  const gefiltertesInventar = inventar.filter((item) =>
+    `${item.name} ${item.kategorie} ${item.hersteller} ${item.standort} ${item.status}`
+      .toLowerCase()
+      .includes(suche.toLowerCase())
+  )
+
   return (
-    <div className="container">
-      <header className="header">
-        <h1>TEKO Inventarverwaltung</h1>
-        <p>Cloudbasierte Inventarverwaltung mit Azure & FastAPI</p>
-      </header>
-
-      <div className="dashboard">
-        <div className="card">
-          <h3>Geräte</h3>
-          <p>{inventar.length}</p>
+    <div className="app-layout">
+      <aside className="sidebar">
+        <div className="logo">
+          <span>TI</span>
+          <div>
+            <h2>TEKO Inventar</h2>
+            <p>Cloud Asset Management</p>
+          </div>
         </div>
 
-        <div className="card available">
-          <h3>Verfügbar</h3>
-          <p>{inventar.filter((item) => item.status === 'verfügbar').length}</p>
-        </div>
+        <nav>
+          <a className="active">Dashboard</a>
+          <a>Inventar</a>
+          <a>Standorte</a>
+          <a>Berichte</a>
+          <a>Einstellungen</a>
+        </nav>
+      </aside>
 
-        <div className="card borrowed">
-          <h3>Ausgeliehen</h3>
-          <p>{inventar.filter((item) => item.status === 'ausgeliehen').length}</p>
-        </div>
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <h1>Inventarverwaltung</h1>
+            <p>Azure · FastAPI · SQL Database · React</p>
+          </div>
 
-        <div className="card defect">
-          <h3>Defekt</h3>
-          <p>{inventar.filter((item) => item.status === 'defekt').length}</p>
-        </div>
-      </div>
+          <button onClick={ladeInventar}>Aktualisieren</button>
+        </header>
 
-      <section className="form-section">
-        <h2>Gerät hinzufügen</h2>
+        <section className="stats-grid">
+          <div className="stat-card">
+            <p>Gesamtgeräte</p>
+            <h2>{inventar.length}</h2>
+          </div>
 
-        <form onSubmit={handleSubmit} className="form-grid">
-          <input
-            name="id"
-            type="number"
-            placeholder="ID"
-            value={form.id}
-            onChange={handleChange}
-            required
-          />
+          <div className="stat-card success">
+            <p>Verfügbar</p>
+            <h2>{inventar.filter((i) => i.status === 'verfügbar').length}</h2>
+          </div>
 
-          <input
-            name="name"
-            type="text"
-            placeholder="Gerätename"
-            value={form.name}
-            onChange={handleChange}
-            required
-          />
+          <div className="stat-card warning">
+            <p>Ausgeliehen</p>
+            <h2>{inventar.filter((i) => i.status === 'ausgeliehen').length}</h2>
+          </div>
 
-          <input
-            name="kategorie"
-            type="text"
-            placeholder="Kategorie"
-            value={form.kategorie}
-            onChange={handleChange}
-            required
-          />
+          <div className="stat-card danger">
+            <p>Defekt</p>
+            <h2>{inventar.filter((i) => i.status === 'defekt').length}</h2>
+          </div>
+        </section>
 
-          <input
-            name="hersteller"
-            type="text"
-            placeholder="Hersteller"
-            value={form.hersteller}
-            onChange={handleChange}
-          />
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2>Neues Gerät erfassen</h2>
+              <p>Inventarobjekt direkt in Azure SQL speichern</p>
+            </div>
+          </div>
 
-          <input
-            name="seriennummer"
-            type="text"
-            placeholder="Seriennummer"
-            value={form.seriennummer}
-            onChange={handleChange}
-          />
+          <form onSubmit={handleSubmit} className="form-grid">
+            <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required />
+            <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
+            <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
+            <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
+            <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
+            <input name="standort" placeholder="Standort" value={form.standort} onChange={handleChange} required />
 
-          <input
-            name="standort"
-            type="text"
-            placeholder="Standort"
-            value={form.standort}
-            onChange={handleChange}
-            required
-          />
+            <select name="status" value={form.status} onChange={handleChange}>
+              <option value="verfügbar">Verfügbar</option>
+              <option value="ausgeliehen">Ausgeliehen</option>
+              <option value="defekt">Defekt</option>
+            </select>
 
-          <select name="status" value={form.status} onChange={handleChange}>
-            <option value="verfügbar">Verfügbar</option>
-            <option value="ausgeliehen">Ausgeliehen</option>
-            <option value="defekt">Defekt</option>
-          </select>
+            <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
 
-          <input
-            name="bemerkung"
-            type="text"
-            placeholder="Bemerkung"
-            value={form.bemerkung}
-            onChange={handleChange}
-          />
+            <button type="submit">Gerät hinzufügen</button>
+          </form>
+        </section>
 
-          <button type="submit">Hinzufügen</button>
-        </form>
-      </section>
+        <section className="panel">
+          <div className="panel-header table-header">
+            <div>
+              <h2>Inventarliste</h2>
+              <p>Aktuelle Geräte aus der Datenbank</p>
+            </div>
 
-      <section className="table-section">
-        <h2>Inventarliste</h2>
+            <input
+              className="search"
+              placeholder="Suchen..."
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+            />
+          </div>
 
-        {loading ? (
-          <p>Lade Daten...</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Kategorie</th>
-                <th>Hersteller</th>
-                <th>Standort</th>
-                <th>Status</th>
-                <th>Aktion</th>
-              </tr>
-            </thead>
+          {loading ? (
+            <div className="loading">Daten werden geladen...</div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Gerät</th>
+                    <th>Kategorie</th>
+                    <th>Hersteller</th>
+                    <th>Standort</th>
+                    <th>Status</th>
+                    <th>Aktion</th>
+                  </tr>
+                </thead>
 
-            <tbody>
-              {inventar.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.id}</td>
-                  <td>{item.name}</td>
-                  <td>{item.kategorie}</td>
-                  <td>{item.hersteller || '-'}</td>
-                  <td>{item.standort}</td>
-                  <td>
-                    <span className={`status ${item.status}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="delete-button"
-                      onClick={() => loeschen(item.id)}
-                    >
-                      Löschen
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+                <tbody>
+                  {gefiltertesInventar.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.id}</td>
+                      <td>
+                        <strong>{item.name}</strong>
+                        <small>{item.seriennummer || 'Keine Seriennummer'}</small>
+                      </td>
+                      <td>{item.kategorie}</td>
+                      <td>{item.hersteller || '-'}</td>
+                      <td>{item.standort}</td>
+                      <td>
+                        <span className={`badge ${item.status}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="delete-btn" onClick={() => loeschen(item.id)}>
+                          Löschen
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   )
 }
