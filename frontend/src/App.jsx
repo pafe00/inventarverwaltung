@@ -94,144 +94,164 @@ function App() {
       .includes(suche.toLowerCase())
   )
 
+  const verfuegbar = inventar.filter((i) => i.status === 'verfügbar').length
+  const ausgeliehen = inventar.filter((i) => i.status === 'ausgeliehen').length
+  const defekt = inventar.filter((i) => i.status === 'defekt').length
+  const standorte = new Set(inventar.map((i) => i.standort)).size
+
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="logo">
-          <span>TI</span>
-          <div>
-            <h2>TEKO Inventar</h2>
-            <p>Cloud Asset Management</p>
-          </div>
+    <div className="page">
+      <nav className="navbar">
+        <div className="brand">TEKO INVENTAR</div>
+        <div className="nav-links">
+          <span className="active">Dashboard</span>
+          <span>Inventare</span>
+          <span>Standorte</span>
+          <span>Import/Export</span>
+          <span>Einstellungen</span>
         </div>
+        <div className="user">Azure Cloud</div>
+      </nav>
 
-        <nav>
-          <a className="active">Dashboard</a>
-          <a>Inventar</a>
-          <a>Standorte</a>
-          <a>Berichte</a>
-          <a>Einstellungen</a>
-        </nav>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <h1>Inventarverwaltung</h1>
-            <p>Azure · FastAPI · SQL Database · React</p>
+      <main className="content">
+        <section className="hero-grid">
+          <div className="hero-card">
+            <div>
+              <h1>{inventar.length}</h1>
+              <p>Inventare</p>
+            </div>
+            <div className="hero-icon">◆</div>
           </div>
 
-          <button onClick={ladeInventar}>Aktualisieren</button>
-        </header>
-
-        <section className="stats-grid">
-          <div className="stat-card">
-            <p>Gesamtgeräte</p>
-            <h2>{inventar.length}</h2>
-          </div>
-
-          <div className="stat-card success">
-            <p>Verfügbar</p>
-            <h2>{inventar.filter((i) => i.status === 'verfügbar').length}</h2>
-          </div>
-
-          <div className="stat-card warning">
-            <p>Ausgeliehen</p>
-            <h2>{inventar.filter((i) => i.status === 'ausgeliehen').length}</h2>
-          </div>
-
-          <div className="stat-card danger">
-            <p>Defekt</p>
-            <h2>{inventar.filter((i) => i.status === 'defekt').length}</h2>
+          <div className="hero-card">
+            <div>
+              <h1>{standorte}</h1>
+              <p>Standorte</p>
+            </div>
+            <div className="hero-icon">◼</div>
           </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Neues Gerät erfassen</h2>
-              <p>Inventarobjekt direkt in Azure SQL speichern</p>
+        <section className="mini-grid">
+          <div className="mini-card">
+            <p>Aktive Inventare</p>
+            <h2>{verfuegbar}</h2>
+            <div className="bar green"></div>
+          </div>
+
+          <div className="mini-card">
+            <p>Ausgeliehen</p>
+            <h2>{ausgeliehen}</h2>
+            <div className="bar yellow"></div>
+          </div>
+
+          <div className="mini-card">
+            <p>Defekte Geräte</p>
+            <h2>{defekt}</h2>
+            <div className="bar red"></div>
+          </div>
+
+          <div className="mini-card">
+            <p>Gesamtbestand</p>
+            <h2>{inventar.length}</h2>
+            <div className="bar blue"></div>
+          </div>
+        </section>
+
+        <section className="dashboard-grid">
+          <div className="panel chart-panel">
+            <h2>Statusverteilung</h2>
+            <div className="donut">
+              <div className="donut-hole"></div>
+            </div>
+
+            <div className="legend">
+              <span><b className="dot green-dot"></b>Verfügbar</span>
+              <span><b className="dot yellow-dot"></b>Ausgeliehen</span>
+              <span><b className="dot red-dot"></b>Defekt</span>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="form-grid">
-            <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required />
-            <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
-            <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
-            <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
-            <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
-            <input name="standort" placeholder="Standort" value={form.standort} onChange={handleChange} required />
+          <div className="panel">
+            <h2>Neues Gerät erfassen</h2>
 
-            <select name="status" value={form.status} onChange={handleChange}>
-              <option value="verfügbar">Verfügbar</option>
-              <option value="ausgeliehen">Ausgeliehen</option>
-              <option value="defekt">Defekt</option>
-            </select>
+            <form onSubmit={handleSubmit} className="form">
+              <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required />
+              <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
+              <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
+              <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
+              <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
+              <input name="standort" placeholder="Standort" value={form.standort} onChange={handleChange} required />
 
-            <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
+              <select name="status" value={form.status} onChange={handleChange}>
+                <option value="verfügbar">Verfügbar</option>
+                <option value="ausgeliehen">Ausgeliehen</option>
+                <option value="defekt">Defekt</option>
+              </select>
 
-            <button type="submit">Gerät hinzufügen</button>
-          </form>
+              <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
+
+              <button type="submit">Speichern</button>
+            </form>
+          </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-header table-header">
+        <section className="panel table-panel">
+          <div className="table-head">
             <div>
               <h2>Inventarliste</h2>
-              <p>Aktuelle Geräte aus der Datenbank</p>
+              <p>Gerätebestand aus Azure SQL Database</p>
             </div>
 
             <input
               className="search"
-              placeholder="Suchen..."
+              placeholder="Inventar suchen..."
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
             />
           </div>
 
           {loading ? (
-            <div className="loading">Daten werden geladen...</div>
+            <p className="loading">Daten werden geladen...</p>
           ) : (
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Gerät</th>
-                    <th>Kategorie</th>
-                    <th>Hersteller</th>
-                    <th>Standort</th>
-                    <th>Status</th>
-                    <th>Aktion</th>
-                  </tr>
-                </thead>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Gerät</th>
+                  <th>Kategorie</th>
+                  <th>Hersteller</th>
+                  <th>Standort</th>
+                  <th>Status</th>
+                  <th>Aktion</th>
+                </tr>
+              </thead>
 
-                <tbody>
-                  {gefiltertesInventar.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.id}</td>
-                      <td>
-                        <strong>{item.name}</strong>
-                        <small>{item.seriennummer || 'Keine Seriennummer'}</small>
-                      </td>
-                      <td>{item.kategorie}</td>
-                      <td>{item.hersteller || '-'}</td>
-                      <td>{item.standort}</td>
-                      <td>
-                        <span className={`badge ${item.status}`}>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="delete-btn" onClick={() => loeschen(item.id)}>
-                          Löschen
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              <tbody>
+                {gefiltertesInventar.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.id}</td>
+                    <td>
+                      <strong>{item.name}</strong>
+                      <small>{item.seriennummer || 'Keine Seriennummer'}</small>
+                    </td>
+                    <td>{item.kategorie}</td>
+                    <td>{item.hersteller || '-'}</td>
+                    <td>{item.standort}</td>
+                    <td>
+                      <span className={`badge ${item.status}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <button className="delete-btn" onClick={() => loeschen(item.id)}>
+                        Löschen
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </section>
       </main>
