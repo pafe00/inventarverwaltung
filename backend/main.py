@@ -25,7 +25,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CONNECTION_STRING = os.getenv("DATABASE_URL")
+DB_PASSWORD = os.getenv("SQL_PASSWORD")
+
+CONNECTION_STRING = (
+    "Driver={ODBC Driver 18 for SQL Server};"
+    "Server=tcp:inventarsqlg6.database.windows.net,1433;"
+    "Database=inventarsqlg6;"
+    "Uid=inventaradmin;"
+    f"Pwd={DB_PASSWORD};"
+    "Encrypt=yes;"
+    "TrustServerCertificate=no;"
+    "Connection Timeout=30;"
+)
 
 
 def get_connection():
