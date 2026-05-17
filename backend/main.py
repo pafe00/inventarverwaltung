@@ -66,7 +66,7 @@ def init_database():
     connection.close()
 
 
-init_database()
+#init_database()
 
 
 class InventarItem(BaseModel):
