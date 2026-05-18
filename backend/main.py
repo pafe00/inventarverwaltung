@@ -18,13 +18,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net"
+        "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net",
+        "https://teko-inventar.ch"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 DB_PASSWORD = os.getenv("SQL_PASSWORD")
 
 CONNECTION_STRING = (
