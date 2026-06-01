@@ -6,7 +6,10 @@ import {
 } from "lucide-react"
 
 const API_URL =
+  import.meta.env.VITE_API_URL ||
   "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
+
+const WRITE_API_KEY = import.meta.env.VITE_WRITE_API_KEY || ""
 
 export default function App() {
   const [inventar, setInventar] = useState([])
@@ -15,6 +18,8 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   const [activePage, setActivePage] = useState("Dashboard")
   const [statusFilter, setStatusFilter] = useState("alle")
+  const [errorMessage, setErrorMessage] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
   const emptyForm = {
     id: "",
@@ -33,13 +38,37 @@ export default function App() {
     ladeInventar()
   }, [])
 
+  function buildWriteHeaders() {
+    const headers = { "Content-Type": "application/json" }
+    if (WRITE_API_KEY) {
+      headers["x-api-key"] = WRITE_API_KEY
+    }
+    return headers
+  }
+
+  async function parseError(res, fallback) {
+    try {
+      const body = await res.json()
+      if (body?.detail) return body.detail
+      if (body?.message) return body.message
+      return fallback
+    } catch {
+      return fallback
+    }
+  }
+
   async function ladeInventar() {
     try {
+      setErrorMessage("")
       const res = await fetch(`${API_URL}/api/inventar`)
+      if (!res.ok) {
+        const detail = await parseError(res, "Inventar konnte nicht geladen werden")
+        throw new Error(detail)
+      }
       const data = await res.json()
       setInventar(data)
     } catch (err) {
-      console.error(err)
+      setErrorMessage(err.message || "Inventar konnte nicht geladen werden")
     }
   }
 
@@ -70,6 +99,8 @@ export default function App() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setErrorMessage("")
+    setIsSaving(true)
 
     const item = {
       id: Number(form.id),
@@ -87,31 +118,48 @@ export default function App() {
       ? `${API_URL}/api/inventar/${editingId}`
       : `${API_URL}/api/inventar`
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(item),
-    })
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: buildWriteHeaders(),
+        body: JSON.stringify(item),
+      })
 
-    if (!res.ok) {
-      alert("Speichern fehlgeschlagen. Prüfe, ob dein Backend PUT unterstützt.")
-      return
+      if (!res.ok) {
+        const detail = await parseError(res, "Speichern fehlgeschlagen")
+        throw new Error(detail)
+      }
+
+      setShowForm(false)
+      setEditingId(null)
+      setForm(emptyForm)
+      ladeInventar()
+    } catch (err) {
+      setErrorMessage(err.message || "Speichern fehlgeschlagen")
+    } finally {
+      setIsSaving(false)
     }
-
-    setShowForm(false)
-    setEditingId(null)
-    setForm(emptyForm)
-    ladeInventar()
   }
 
   async function loeschen(id) {
     if (!confirm("Gerät wirklich löschen?")) return
 
-    await fetch(`${API_URL}/api/inventar/${id}`, {
-      method: "DELETE",
-    })
+    try {
+      setErrorMessage("")
+      const res = await fetch(`${API_URL}/api/inventar/${id}`, {
+        method: "DELETE",
+        headers: WRITE_API_KEY ? { "x-api-key": WRITE_API_KEY } : {},
+      })
 
-    ladeInventar()
+      if (!res.ok) {
+        const detail = await parseError(res, "Löschen fehlgeschlagen")
+        throw new Error(detail)
+      }
+
+      ladeInventar()
+    } catch (err) {
+      setErrorMessage(err.message || "Löschen fehlgeschlagen")
+    }
   }
 
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
@@ -262,6 +310,13 @@ export default function App() {
                 <div>
                   <h2>Standorte</h2>
                   <p>Übersicht aller Geräte nach Standort</p>
+
+            {errorMessage && (
+              <section className="tableBox report">
+                <h2>Fehler</h2>
+                <p>{errorMessage}</p>
+              </section>
+            )}
                 </div>
               </div>
 
@@ -332,7 +387,7 @@ export default function App() {
                 <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
               </div>
 
-              <button className="save" type="submit">
+                <button className="save" type="submit" disabled={isSaving}>
                 {editingId ? "Änderungen speichern" : "Speichern"}
               </button>
             </form>
