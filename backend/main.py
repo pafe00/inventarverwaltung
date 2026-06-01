@@ -56,12 +56,22 @@ app = FastAPI(
     openapi_url=None
 )
 
+DEFAULT_CORS_ORIGINS = [
+    "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net",
+    "https://teko-inventar.ch",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
+]
+cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+if not allowed_origins:
+    allowed_origins = DEFAULT_CORS_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net",
-        "https://teko-inventar.ch"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,7 +91,12 @@ CONNECTION_STRING = (
 
 
 def get_connection():
-    return pyodbc.connect(CONNECTION_STRING)
+    if not DB_PASSWORD:
+        raise HTTPException(status_code=500, detail="Server-Konfiguration fehlt: SQL_PASSWORD")
+    try:
+        return pyodbc.connect(CONNECTION_STRING)
+    except pyodbc.Error:
+        raise HTTPException(status_code=503, detail="Datenbankverbindung fehlgeschlagen")
 
 
 def init_database():

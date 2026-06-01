@@ -7,7 +7,7 @@ import {
 import LoginPage from "./LoginPage"
 
 const API_URL =
-  "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
+  (import.meta.env.VITE_API_URL || "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net").replace(/\/$/, "")
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")

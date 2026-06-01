@@ -2,7 +2,7 @@ import { useState } from "react"
 import { LogIn, UserPlus, Package } from "lucide-react"
 
 const API_URL =
-  "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
+  (import.meta.env.VITE_API_URL || "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net").replace(/\/$/, "")
 const ALLOWED_EMAIL_DOMAIN = "edu.teko.ch"
 
 function isValidTekoEmail(value) {
