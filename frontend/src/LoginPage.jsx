@@ -24,9 +24,18 @@ export default function LoginPage({ onLogin }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       })
-      const data = await res.json()
+
+      let data = null
+      const contentType = res.headers.get("content-type") || ""
+      if (contentType.includes("application/json")) {
+        data = await res.json()
+      } else {
+        const text = await res.text()
+        data = { detail: text }
+      }
+
       if (!res.ok) {
-        setError(data.detail || "Fehler beim Anmelden")
+        setError(data.detail || `Serverfehler (${res.status})`)
         return
       }
       if (mode === "register") {
