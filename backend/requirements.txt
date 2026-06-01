@@ -3,3 +3,5 @@ uvicorn
 gunicorn
 pydantic
 pyodbc
+passlib[bcrypt]
+python-jose[cryptography]

@@ -1,10 +1,38 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import Optional
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
 import uvicorn
 import pyodbc
 import os
+
+# --- Auth config ---
+JWT_SECRET = os.getenv("JWT_SECRET", "J345GJH345JH6G3J45GJ4H5GJ346JH345GHJ463JHRVJH")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_HOURS = 8
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+bearer_scheme = HTTPBearer()
+
+
+def create_token(username: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS)
+    return jwt.encode({"sub": username, "exp": expire}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> str:
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Ungültiger Token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Ungültiger oder abgelaufener Token")
 
 app = FastAPI(
     title="Inventarverwaltung API",
@@ -82,6 +110,11 @@ class InventarItem(BaseModel):
     bemerkung: Optional[str] = None
 
 
+class UserCredentials(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=6)
+
+
 @app.get("/")
 def root():
     return {
@@ -90,6 +123,40 @@ def root():
         "message": "Backend der Inventarverwaltung läuft.",
         "access": "API-Zugriff ist nur für das autorisierte Frontend vorgesehen."
     }
+
+
+@app.post("/api/register")
+def register(credentials: UserCredentials):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT id FROM users WHERE username = ?", (credentials.username,))
+    if cursor.fetchone():
+        connection.close()
+        raise HTTPException(status_code=400, detail="Benutzername bereits vergeben")
+    hashed = pwd_context.hash(credentials.password)
+    cursor.execute(
+        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+        (credentials.username, hashed)
+    )
+    connection.commit()
+    connection.close()
+    return {"message": "Benutzer erfolgreich registriert"}
+
+
+@app.post("/api/login")
+def login(credentials: UserCredentials):
+    connection = get_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "SELECT password_hash FROM users WHERE username = ?",
+        (credentials.username,)
+    )
+    row = cursor.fetchone()
+    connection.close()
+    if not row or not pwd_context.verify(credentials.password, row[0]):
+        raise HTTPException(status_code=401, detail="Falscher Benutzername oder Passwort")
+    token = create_token(credentials.username)
+    return {"access_token": token, "token_type": "bearer", "username": credentials.username}
 
 
 @app.get("/api/inventar")
@@ -172,7 +239,7 @@ def get_item(item_id: int):
 
 
 @app.post("/api/inventar")
-def create_item(item: InventarItem):
+def create_item(item: InventarItem, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -225,7 +292,7 @@ def create_item(item: InventarItem):
 
 
 @app.put("/api/inventar/{item_id}")
-def update_item(item_id: int, item: InventarItem):
+def update_item(item_id: int, item: InventarItem, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -269,7 +336,7 @@ def update_item(item_id: int, item: InventarItem):
 
 
 @app.delete("/api/inventar/{item_id}")
-def delete_item(item_id: int):
+def delete_item(item_id: int, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 

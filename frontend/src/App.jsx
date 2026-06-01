@@ -2,19 +2,38 @@ import { useEffect, useMemo, useState } from "react"
 import {
   Home, Monitor, MapPin, BarChart3, Settings, Bell, Search, Plus,
   Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
-  Keyboard, Server, ChevronRight, Package
+  Keyboard, Server, ChevronRight, Package, LogOut
 } from "lucide-react"
+import LoginPage from "./LoginPage"
 
 const API_URL =
   "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
 
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem("token") || "")
+  const [username, setUsername] = useState(() => localStorage.getItem("username") || "")
   const [inventar, setInventar] = useState([])
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [activePage, setActivePage] = useState("Dashboard")
   const [statusFilter, setStatusFilter] = useState("alle")
+
+  function handleLogin(newToken, newUsername) {
+    setToken(newToken)
+    setUsername(newUsername)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("token")
+    localStorage.removeItem("username")
+    setToken("")
+    setUsername("")
+  }
+
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />
+  }
 
   const emptyForm = {
     id: "",
@@ -89,9 +108,17 @@ export default function App() {
 
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
       body: JSON.stringify(item),
     })
+
+    if (res.status === 401) {
+      handleLogout()
+      return
+    }
 
     if (!res.ok) {
       alert("Speichern fehlgeschlagen. Prüfe, ob dein Backend PUT unterstützt.")
@@ -107,9 +134,14 @@ export default function App() {
   async function loeschen(id) {
     if (!confirm("Gerät wirklich löschen?")) return
 
-    await fetch(`${API_URL}/api/inventar/${id}`, {
+    const delRes = await fetch(`${API_URL}/api/inventar/${id}`, {
       method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` },
     })
+    if (delRes.status === 401) {
+      handleLogout()
+      return
+    }
 
     ladeInventar()
   }
@@ -171,12 +203,18 @@ export default function App() {
           </div>
 
           <div className="user">
-            <div className="avatar">A</div>
-            <div>
-              <strong>Administrator</strong>
-              <p>admin@teko.ch</p>
+            <div className="avatar">{username ? username[0].toUpperCase() : "A"}</div>
+            <div style={{flex:1}}>
+              <strong>{username || "Administrator"}</strong>
+              <p>angemeldet</p>
             </div>
-            <ChevronRight />
+            <button
+              onClick={handleLogout}
+              title="Abmelden"
+              style={{background:"transparent",border:0,color:"#94a3b8",cursor:"pointer",padding:4}}
+            >
+              <LogOut size={18} />
+            </button>
           </div>
         </aside>
 
