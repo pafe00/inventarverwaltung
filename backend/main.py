@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import uvicorn
 import pyodbc
 import os
+import re
 
 # --- Auth config ---
 JWT_SECRET = os.getenv("JWT_SECRET", "J345GJH345JH6G3J45GJ4H5GJ346JH345GHJ463JHRVJH")
@@ -17,6 +18,7 @@ JWT_EXPIRE_HOURS = 8
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
+ALLOWED_EMAIL_DOMAIN = "edu.teko.ch"
 
 
 def create_token(username: str) -> str:
@@ -33,6 +35,17 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
         return username
     except JWTError:
         raise HTTPException(status_code=401, detail="Ungültiger oder abgelaufener Token")
+
+
+def normalize_teko_email(value: str) -> str:
+    email = value.strip().lower()
+    pattern = rf"^[^@\s]+@{re.escape(ALLOWED_EMAIL_DOMAIN)}$"
+    if not re.fullmatch(pattern, email):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nur E-Mail-Adressen mit @{ALLOWED_EMAIL_DOMAIN} sind erlaubt"
+        )
+    return email
 
 app = FastAPI(
     title="Inventarverwaltung API",
@@ -127,16 +140,17 @@ def root():
 
 @app.post("/api/register")
 def register(credentials: UserCredentials):
+    email = normalize_teko_email(credentials.username)
     connection = get_connection()
     cursor = connection.cursor()
-    cursor.execute("SELECT id FROM users WHERE username = ?", (credentials.username,))
+    cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
     if cursor.fetchone():
         connection.close()
-        raise HTTPException(status_code=400, detail="Benutzername bereits vergeben")
+        raise HTTPException(status_code=400, detail="E-Mail bereits vergeben")
     hashed = pwd_context.hash(credentials.password)
     cursor.execute(
         "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (credentials.username, hashed)
+        (email, hashed)
     )
     connection.commit()
     connection.close()
@@ -145,18 +159,19 @@ def register(credentials: UserCredentials):
 
 @app.post("/api/login")
 def login(credentials: UserCredentials):
+    email = normalize_teko_email(credentials.username)
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute(
-        "SELECT password_hash FROM users WHERE username = ?",
-        (credentials.username,)
+        "SELECT password_hash FROM users WHERE LOWER(username) = ?",
+        (email,)
     )
     row = cursor.fetchone()
     connection.close()
     if not row or not pwd_context.verify(credentials.password, row[0]):
-        raise HTTPException(status_code=401, detail="Falscher Benutzername oder Passwort")
-    token = create_token(credentials.username)
-    return {"access_token": token, "token_type": "bearer", "username": credentials.username}
+        raise HTTPException(status_code=401, detail="Falsche E-Mail oder Passwort")
+    token = create_token(email)
+    return {"access_token": token, "token_type": "bearer", "username": email}
 
 
 @app.get("/api/inventar")

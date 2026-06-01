@@ -3,6 +3,12 @@ import { LogIn, UserPlus, Package } from "lucide-react"
 
 const API_URL =
   "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
+const ALLOWED_EMAIL_DOMAIN = "edu.teko.ch"
+
+function isValidTekoEmail(value) {
+  const email = value.trim().toLowerCase()
+  return /^[^@\s]+@edu\.teko\.ch$/.test(email)
+}
 
 export default function LoginPage({ onLogin }) {
   const [mode, setMode] = useState("login")
@@ -16,13 +22,20 @@ export default function LoginPage({ onLogin }) {
     e.preventDefault()
     setError("")
     setSuccess("")
+
+    if (!isValidTekoEmail(username)) {
+      setError(`Nur E-Mail-Adressen mit @${ALLOWED_EMAIL_DOMAIN} sind erlaubt`)
+      return
+    }
+
     setLoading(true)
     try {
+      const normalizedEmail = username.trim().toLowerCase()
       const endpoint = mode === "login" ? "/api/login" : "/api/register"
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: normalizedEmail, password }),
       })
 
       let data = null
@@ -41,14 +54,14 @@ export default function LoginPage({ onLogin }) {
       if (mode === "register") {
         setMode("login")
         setSuccess("Registrierung erfolgreich. Bitte jetzt anmelden.")
-        setUsername("")
+        setUsername(normalizedEmail)
         setPassword("")
         return
       }
 
       localStorage.setItem("token", data.access_token)
-      localStorage.setItem("username", data.username)
-      onLogin(data.access_token, data.username)
+      localStorage.setItem("username", normalizedEmail)
+      onLogin(data.access_token, normalizedEmail)
     } catch {
       setError("Verbindungsfehler zum Server")
     } finally {
@@ -105,14 +118,15 @@ export default function LoginPage({ onLogin }) {
 
             <form onSubmit={handleSubmit} className="authForm">
               <label>
-                <span>Benutzername</span>
+                <span>TEKO E-Mail</span>
                 <input
-                  type="text"
+                  type="email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
-                  minLength={3}
-                  placeholder="benutzername"
+                  placeholder="vorname.nachname@edu.teko.ch"
+                  pattern="^[^@\s]+@edu\.teko\.ch$"
+                  title="Bitte eine E-Mail-Adresse mit @edu.teko.ch eingeben"
                   autoComplete="username"
                 />
               </label>
