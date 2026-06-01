@@ -251,6 +251,13 @@ export default function App() {
             </div>
           </header>
 
+          {errorMessage && (
+            <section className="tableBox report">
+              <h2>Fehler</h2>
+              <p>{errorMessage}</p>
+            </section>
+          )}
+
           {(activePage === "Dashboard" || activePage === "Inventar") && (
             <>
               <section className="cards">
@@ -310,13 +317,6 @@ export default function App() {
                 <div>
                   <h2>Standorte</h2>
                   <p>Übersicht aller Geräte nach Standort</p>
-
-            {errorMessage && (
-              <section className="tableBox report">
-                <h2>Fehler</h2>
-                <p>{errorMessage}</p>
-              </section>
-            )}
                 </div>
               </div>
 
