@@ -5,15 +5,17 @@ const API_URL =
   "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net"
 
 export default function LoginPage({ onLogin }) {
-  const [mode, setMode] = useState("login") // "login" | "register"
+  const [mode, setMode] = useState("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError("")
+    setSuccess("")
     setLoading(true)
     try {
       const endpoint = mode === "login" ? "/api/login" : "/api/register"
@@ -29,12 +31,12 @@ export default function LoginPage({ onLogin }) {
       }
       if (mode === "register") {
         setMode("login")
-        setError("")
+        setSuccess("Registrierung erfolgreich. Bitte jetzt anmelden.")
         setUsername("")
         setPassword("")
         return
       }
-      // login successful
+
       localStorage.setItem("token", data.access_token)
       localStorage.setItem("username", data.username)
       onLogin(data.access_token, data.username)
@@ -46,97 +48,308 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="bg-blue-600 p-3 rounded-2xl mb-3">
-            <Package size={32} className="text-white" />
-          </div>
-          <h1 className="text-white text-2xl font-bold">Inventarverwaltung</h1>
-          <p className="text-gray-400 text-sm mt-1">TEKO Schweiz</p>
-        </div>
+    <>
+      <style>{css}</style>
 
-        {/* Card */}
-        <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-          {/* Tab switcher */}
-          <div className="flex bg-gray-800 rounded-lg p-1 mb-6">
-            <button
-              onClick={() => { setMode("login"); setError("") }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "login"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <LogIn size={15} />
-              Anmelden
-            </button>
-            <button
-              onClick={() => { setMode("register"); setError("") }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "register"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <UserPlus size={15} />
-              Registrieren
-            </button>
-          </div>
+      <div className="authPage">
+        <div className="authGlow authGlowLeft" />
+        <div className="authGlow authGlowRight" />
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-gray-400 text-sm mb-1">Benutzername</label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-                minLength={3}
-                placeholder="benutzername"
-                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
+        <div className="authShell">
+          <div className="authBrand">
+            <div className="brandIconWrap">
+              <Package size={34} />
             </div>
             <div>
-              <label className="block text-gray-400 text-sm mb-1">Passwort</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="••••••••"
-                className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
+              <h1>Inventarverwaltung</h1>
+              <p>TEKO Schweiz</p>
+            </div>
+          </div>
+
+          <div className="authCard">
+            <div className="modeSwitch" role="tablist" aria-label="Anmelde-Modus">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login")
+                  setError("")
+                  setSuccess("")
+                }}
+                className={mode === "login" ? "modeBtn active" : "modeBtn"}
+              >
+                <LogIn size={16} />
+                Anmelden
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register")
+                  setError("")
+                  setSuccess("")
+                }}
+                className={mode === "register" ? "modeBtn active" : "modeBtn"}
+              >
+                <UserPlus size={16} />
+                Registrieren
+              </button>
             </div>
 
-            {error && (
-              <p className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
+            <form onSubmit={handleSubmit} className="authForm">
+              <label>
+                <span>Benutzername</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  placeholder="benutzername"
+                  autoComplete="username"
+                />
+              </label>
 
-            {mode === "register" && !error && (
-              <p className="text-green-400 text-xs hidden" id="success-msg">
-                Registrierung erfolgreich! Bitte anmelden.
-              </p>
-            )}
+              <label>
+                <span>Passwort</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="••••••••"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                />
+              </label>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 rounded-lg text-sm transition-colors"
-            >
-              {loading
-                ? "Bitte warten..."
-                : mode === "login"
-                ? "Anmelden"
-                : "Registrieren"}
-            </button>
-          </form>
+              {error && <p className="msg error">{error}</p>}
+              {success && <p className="msg success">{success}</p>}
+
+              <button type="submit" disabled={loading} className="submitBtn">
+                {loading
+                  ? "Bitte warten..."
+                  : mode === "login"
+                    ? "Anmelden"
+                    : "Registrieren"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
+
+const css = `
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap");
+
+* {
+  box-sizing: border-box;
+}
+
+.authPage {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(1200px 700px at 10% 0%, #d7f0ff 0%, #e9f7ff 35%, #f6fbff 100%);
+  font-family: "Sora", sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+.authGlow {
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  border-radius: 50%;
+  filter: blur(55px);
+  opacity: .35;
+  pointer-events: none;
+}
+
+.authGlowLeft {
+  background: #4f46e5;
+  top: -170px;
+  left: -140px;
+}
+
+.authGlowRight {
+  background: #0ea5e9;
+  bottom: -180px;
+  right: -120px;
+}
+
+.authShell {
+  width: 100%;
+  max-width: 460px;
+  position: relative;
+  z-index: 1;
+}
+
+.authBrand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.brandIconWrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, #1d4ed8, #0ea5e9);
+  box-shadow: 0 16px 28px rgba(14, 116, 144, .35);
+}
+
+.authBrand h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.05;
+  color: #0f172a;
+}
+
+.authBrand p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.authCard {
+  background: rgba(255, 255, 255, .74);
+  border: 1px solid rgba(15, 23, 42, .08);
+  backdrop-filter: blur(8px);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, .12);
+}
+
+.modeSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.modeBtn {
+  height: 44px;
+  border: 1px solid rgba(15, 23, 42, .1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .65);
+  color: #334155;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.modeBtn:hover {
+  transform: translateY(-1px);
+}
+
+.modeBtn.active {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(2, 132, 199, .33);
+}
+
+.authForm {
+  display: grid;
+  gap: 12px;
+}
+
+.authForm label span {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 7px;
+}
+
+.authForm input {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: rgba(255, 255, 255, .87);
+  padding: 0 13px;
+  font-size: 15px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.authForm input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .15);
+}
+
+.msg {
+  margin: 2px 0 0;
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.msg.error {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.msg.success {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.submitBtn {
+  height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1d4ed8, #0284c7);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: pointer;
+  box-shadow: 0 16px 28px rgba(2, 132, 199, .35);
+  transition: transform .18s ease, filter .18s ease;
+}
+
+.submitBtn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.submitBtn:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 640px) {
+  .authPage {
+    padding: 14px;
+  }
+
+  .authBrand h1 {
+    font-size: 28px;
+  }
+
+  .authCard {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .modeBtn {
+    font-size: 14px;
+  }
+}
+`
