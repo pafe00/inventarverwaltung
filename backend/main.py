@@ -77,16 +77,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 DB_PASSWORD = os.getenv("SQL_PASSWORD")
+DB_SERVER = os.getenv("SQL_SERVER", "tcp:inventarsqlg6.database.windows.net,1433")
+DB_DATABASE = os.getenv("SQL_DATABASE", "inventarsqlg6")
+DB_USER = os.getenv("SQL_USER", "inventaradmin")
+DB_DRIVER = os.getenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
+DB_ENCRYPT = os.getenv("SQL_ENCRYPT", "yes")
+DB_TRUST_SERVER_CERT = os.getenv("SQL_TRUST_SERVER_CERTIFICATE", "no")
+DB_TIMEOUT = os.getenv("SQL_TIMEOUT", "30")
 
 CONNECTION_STRING = (
-    "Driver={ODBC Driver 18 for SQL Server};"
-    "Server=tcp:inventarsqlg6.database.windows.net,1433;"
-    "Database=inventarsqlg6;"
-    "Uid=inventaradmin;"
+    f"Driver={{{DB_DRIVER}}};"
+    f"Server={DB_SERVER};"
+    f"Database={DB_DATABASE};"
+    f"Uid={DB_USER};"
     f"Pwd={DB_PASSWORD};"
-    "Encrypt=yes;"
-    "TrustServerCertificate=no;"
-    "Connection Timeout=30;"
+    f"Encrypt={DB_ENCRYPT};"
+    f"TrustServerCertificate={DB_TRUST_SERVER_CERT};"
+    f"Connection Timeout={DB_TIMEOUT};"
 )
 
 
@@ -95,8 +102,27 @@ def get_connection():
         raise HTTPException(status_code=500, detail="Server-Konfiguration fehlt: SQL_PASSWORD")
     try:
         return pyodbc.connect(CONNECTION_STRING)
-    except pyodbc.Error:
-        raise HTTPException(status_code=503, detail="Datenbankverbindung fehlgeschlagen")
+    except pyodbc.Error as exc:
+        error_code = exc.args[0] if exc.args else "DB_ERROR"
+        raise HTTPException(
+            status_code=503,
+            detail=f"Datenbankverbindung fehlgeschlagen ({error_code}). SQL_SERVER/SQL_DATABASE/SQL_USER/SQL_PASSWORD prüfen"
+        )
+
+
+def ensure_users_table(cursor):
+    cursor.execute("""
+    IF NOT EXISTS (
+        SELECT * FROM sysobjects
+        WHERE name='users' AND xtype='U'
+    )
+    CREATE TABLE users (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        username NVARCHAR(255) NOT NULL UNIQUE,
+        password_hash NVARCHAR(255) NOT NULL,
+        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    )
+    """)
 
 
 def init_database():
@@ -158,6 +184,8 @@ def register(credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     connection = get_connection()
     cursor = connection.cursor()
+    ensure_users_table(cursor)
+    connection.commit()
     cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
     if cursor.fetchone():
         connection.close()
@@ -177,6 +205,8 @@ def login(credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     connection = get_connection()
     cursor = connection.cursor()
+    ensure_users_table(cursor)
+    connection.commit()
     cursor.execute(
         "SELECT password_hash FROM users WHERE LOWER(username) = ?",
         (email,)
