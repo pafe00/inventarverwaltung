@@ -19,6 +19,18 @@ export default function App() {
   const [editingId, setEditingId] = useState(null)
   const [activePage, setActivePage] = useState("Dashboard")
   const [statusFilter, setStatusFilter] = useState("alle")
+  const emptyForm = {
+    id: "",
+    name: "",
+    kategorie: "Laptop",
+    hersteller: "",
+    seriennummer: "",
+    standort: "",
+    status: "verfügbar",
+    bemerkung: "",
+  }
+  const [form, setForm] = useState(emptyForm)
+  const [loading, setLoading] = useState(true)
 
   function handleLogin(newToken, newUsername) {
     setToken(newToken)
@@ -30,42 +42,10 @@ export default function App() {
     localStorage.removeItem("username")
     setToken("")
     setUsername("")
-    // Force re-render by clearing sensitive state
     setInventar([])
     setShowForm(false)
     setActivePage("Dashboard")
   }
-
-  // Monitor token changes and ensure proper page styling
-  useEffect(() => {
-    if (!token) {
-      // Force reset when logged out
-      document.body.style.display = "block"
-      document.body.style.visibility = "visible"
-    }
-  }, [token])
-
-  if (!token) {
-    return (
-      <div style={{ margin: 0, padding: 0, width: "100%", height: "100vh" }}>
-        <LoginPage key="login" onLogin={handleLogin} />
-      </div>
-    )
-  }
-
-  const emptyForm = {
-    id: "",
-    name: "",
-    kategorie: "Laptop",
-    hersteller: "",
-    seriennummer: "",
-    standort: "",
-    status: "verfügbar",
-    bemerkung: "",
-  }
-
-  const [form, setForm] = useState(emptyForm)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (token) {
@@ -73,10 +53,20 @@ export default function App() {
     }
   }, [token])
 
+  if (!token) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
   async function ladeInventar() {
     try {
       setLoading(true)
-      const res = await fetch(`${API_URL}/api/inventar`)
+      const res = await fetch(`${API_URL}/api/inventar`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      if (res.status === 401) {
+        handleLogout()
+        return
+      }
       if (!res.ok) {
         console.error("Fehler beim Laden:", res.status, res.statusText)
         setInventar([])
