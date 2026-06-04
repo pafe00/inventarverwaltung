@@ -48,18 +48,30 @@ export default function App() {
   }
 
   const [form, setForm] = useState(emptyForm)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    ladeInventar()
-  }, [])
+    if (token) {
+      ladeInventar()
+    }
+  }, [token])
 
   async function ladeInventar() {
     try {
+      setLoading(true)
       const res = await fetch(`${API_URL}/api/inventar`)
+      if (!res.ok) {
+        console.error("Fehler beim Laden:", res.status, res.statusText)
+        setInventar([])
+        return
+      }
       const data = await res.json()
-      setInventar(data)
+      setInventar(Array.isArray(data) ? data : [])
     } catch (err) {
-      console.error(err)
+      console.error("Fehler beim Abrufen des Inventars:", err)
+      setInventar([])
+    } finally {
+      setLoading(false)
     }
   }
 
