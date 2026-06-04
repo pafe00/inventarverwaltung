@@ -204,14 +204,14 @@ export default function App() {
 
           <div className="user">
             <div className="avatar">{username ? username[0].toUpperCase() : "A"}</div>
-            <div style={{flex:1}}>
+            <div className="userMeta">
               <strong>{username || "Administrator"}</strong>
               <p>angemeldet</p>
             </div>
             <button
               onClick={handleLogout}
+              className="logoutBtn"
               title="Abmelden"
-              style={{background:"transparent",border:0,color:"#94a3b8",cursor:"pointer",padding:4}}
             >
               <LogOut size={18} />
             </button>
@@ -587,6 +587,18 @@ button {
   padding: 16px;
 }
 
+.userMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.userMeta strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .avatar {
   width: 56px;
   height: 56px;
@@ -602,6 +614,22 @@ button {
 .user p {
   margin: 4px 0 0;
   color: #cbd5e1;
+}
+
+.logoutBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.logoutBtn:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: #dbeafe;
 }
 
 .main {

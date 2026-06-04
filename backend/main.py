@@ -47,6 +47,15 @@ def normalize_teko_email(value: str) -> str:
         )
     return email
 
+
+def validate_password_strength(value: str) -> None:
+    pattern = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$"
+    if not re.fullmatch(pattern, value):
+        raise HTTPException(
+            status_code=400,
+            detail="Passwort muss mindestens 8 Zeichen haben sowie Gross-/Kleinbuchstaben und 1 Sonderzeichen enthalten"
+        )
+
 app = FastAPI(
     title="Inventarverwaltung API",
     description="Backend für cloudbasierte Inventarverwaltung",
@@ -182,6 +191,7 @@ def root():
 @app.post("/api/register")
 def register(credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
+    validate_password_strength(credentials.password)
     connection = get_connection()
     cursor = connection.cursor()
     ensure_users_table(cursor)

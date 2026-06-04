@@ -10,6 +10,10 @@ function isValidTekoEmail(value) {
   return /^[^@\s]+@edu\.teko\.ch$/.test(email)
 }
 
+function isStrongPassword(value) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/.test(value)
+}
+
 export default function LoginPage({ onLogin }) {
   const [mode, setMode] = useState("login")
   const [username, setUsername] = useState("")
@@ -25,6 +29,11 @@ export default function LoginPage({ onLogin }) {
 
     if (!isValidTekoEmail(username)) {
       setError(`Nur E-Mail-Adressen mit @${ALLOWED_EMAIL_DOMAIN} sind erlaubt`)
+      return
+    }
+
+    if (mode === "register" && !isStrongPassword(password)) {
+      setError("Passwort muss mindestens 8 Zeichen haben sowie Gross-/Kleinbuchstaben und 1 Sonderzeichen enthalten")
       return
     }
 
@@ -138,7 +147,9 @@ export default function LoginPage({ onLogin }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={mode === "register" ? 8 : 1}
+                  pattern={mode === "register" ? "^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$" : undefined}
+                  title={mode === "register" ? "Mindestens 8 Zeichen mit Gross-/Kleinbuchstaben und 1 Sonderzeichen" : undefined}
                   placeholder="••••••••"
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                 />
