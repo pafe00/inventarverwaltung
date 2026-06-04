@@ -4,6 +4,7 @@ import {
   Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
   Keyboard, Server, ChevronRight, Package, LogOut
 } from "lucide-react"
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import LoginPage from "./LoginPage"
 
 const API_URL =
@@ -241,7 +242,11 @@ export default function App() {
             </div>
           </header>
 
-          {(activePage === "Dashboard" || activePage === "Inventar") && (
+          {activePage === "Dashboard" && (
+            <DashboardPage inventar={inventar} />
+          )}
+
+          {activePage === "Inventar" && (
             <>
               <section className="cards">
                 <Card
@@ -258,7 +263,7 @@ export default function App() {
                   color="green"
                   icon={<CheckCircle />}
                   title="Verfügbar"
-                  value={verfuegbar}
+                  value={inventar.filter((x) => x.status === "verfügbar").length}
                   text="Bereit zur Nutzung"
                   onClick={() => setStatusFilter("verfügbar")}
                   active={statusFilter === "verfügbar"}
@@ -268,7 +273,7 @@ export default function App() {
                   color="orange"
                   icon={<Clock3 />}
                   title="Ausgeliehen"
-                  value={ausgeliehen}
+                  value={inventar.filter((x) => x.status === "ausgeliehen").length}
                   text="Aktuell ausgeliehen"
                   onClick={() => setStatusFilter("ausgeliehen")}
                   active={statusFilter === "ausgeliehen"}
@@ -278,7 +283,7 @@ export default function App() {
                   color="red"
                   icon={<AlertTriangle />}
                   title="Defekt"
-                  value={defekt}
+                  value={inventar.filter((x) => x.status === "defekt").length}
                   text="Benötigen Reparatur"
                   onClick={() => setStatusFilter("defekt")}
                   active={statusFilter === "defekt"}
@@ -378,6 +383,116 @@ export default function App() {
         )}
       </div>
     </>
+  )
+}
+
+function DashboardPage({ inventar }) {
+  const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
+  const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
+  const defekt = inventar.filter((x) => x.status === "defekt").length
+
+  const statusData = [
+    { name: "Verfügbar", value: verfuegbar, color: "#22c55e" },
+    { name: "Ausgeliehen", value: ausgeliehen, color: "#f59e0b" },
+    { name: "Defekt", value: defekt, color: "#ef4444" },
+  ]
+
+  const gruppiert = {}
+  inventar.forEach((item) => {
+    const ort = item.standort || "Unbekannt"
+    gruppiert[ort] = (gruppiert[ort] || 0) + 1
+  })
+  const standortData = Object.entries(gruppiert).map(([ort, count]) => ({
+    name: ort,
+    count,
+  }))
+
+  return (
+    <section className="dashboard">
+      <div className="dashGrid">
+        <div className="dashCard kpi">
+          <div className="kpiIcon blue">
+            <Monitor size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Gesamtgeräte</span>
+            <strong>{inventar.length}</strong>
+            <p>Alle Geräte im System</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi">
+          <div className="kpiIcon green">
+            <CheckCircle size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Verfügbar</span>
+            <strong>{verfuegbar}</strong>
+            <p>Bereit zur Nutzung</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi">
+          <div className="kpiIcon orange">
+            <Clock3 size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Ausgeliehen</span>
+            <strong>{ausgeliehen}</strong>
+            <p>Aktuell ausgeliehen</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi alert">
+          <div className="kpiIcon red">
+            <AlertTriangle size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Defekt</span>
+            <strong>{defekt}</strong>
+            <p>Benötigen Reparatur</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="chartsGrid">
+        <div className="dashCard chart">
+          <h3>Status Übersicht</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={statusData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {statusData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="dashCard chart">
+          <h3>Geräte nach Standort</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={standortData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#2563eb" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -1006,6 +1121,136 @@ td {
   }
 
   .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.dashGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.dashCard {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e5eaf2;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.dashCard:hover {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.dashCard.kpi {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.dashCard.kpi.alert {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.kpiIcon {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.kpiIcon.blue {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.kpiIcon.green {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+.kpiIcon.orange {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.kpiIcon.red {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.kpiText {
+  flex: 1;
+}
+
+.kpiText span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpiText strong {
+  display: block;
+  font-size: 32px;
+  margin: 6px 0;
+  color: #0f172a;
+}
+
+.kpiText p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.dashCard.chart {
+  padding: 28px;
+}
+
+.dashCard.chart h3 {
+  margin: 0 0 20px;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+@media (max-width: 1300px) {
+  .dashGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .dashGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashCard.kpi {
+    flex-direction: row;
+  }
+
+  .chartsGrid {
     grid-template-columns: 1fr;
   }
 }
