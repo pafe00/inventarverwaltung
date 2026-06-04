@@ -1,20 +1,37 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import uvicorn
 import pyodbc
 import os
 import re
+import logging
+
+# --- Logging ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# --- Rate Limiting ---
+limiter = Limiter(key_func=get_remote_address)
 
 # --- Auth config ---
-JWT_SECRET = os.getenv("JWT_SECRET", "J345GJH345JH6G3J45GJ4H5GJ346JH345GHJ463JHRVJH")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("FEHLER: JWT_SECRET muss als Umgebungsvariable gesetzt sein!")
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 8
+MAX_PASSWORD_LENGTH = 128
+MAX_EMAIL_LENGTH = 255
+MAX_REQUEST_SIZE = 1024 * 100  # 100KB
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
@@ -65,6 +82,12 @@ app = FastAPI(
     openapi_url=None
 )
 
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return HTTPException(status_code=429, detail="Zu viele Anfragen. Bitte später versuchen.")
+
 DEFAULT_CORS_ORIGINS = [
     "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net",
     "https://teko-inventar.ch",
@@ -108,14 +131,15 @@ CONNECTION_STRING = (
 
 def get_connection():
     if not DB_PASSWORD:
-        raise HTTPException(status_code=500, detail="Server-Konfiguration fehlt: SQL_PASSWORD")
+        logger.error("DB_PASSWORD nicht gesetzt")
+        raise HTTPException(status_code=500, detail="Serverfehler")
     try:
         return pyodbc.connect(CONNECTION_STRING)
     except pyodbc.Error as exc:
-        error_code = exc.args[0] if exc.args else "DB_ERROR"
+        logger.error(f"DB Connection Error: {exc}")
         raise HTTPException(
             status_code=503,
-            detail=f"Datenbankverbindung fehlgeschlagen ({error_code}). SQL_SERVER/SQL_DATABASE/SQL_USER/SQL_PASSWORD prüfen"
+            detail="Datenbankverbindung nicht möglich"
         )
 
 
@@ -163,19 +187,46 @@ def init_database():
 
 
 class InventarItem(BaseModel):
-    id: int
-    name: str = Field(..., min_length=2)
-    kategorie: str
-    hersteller: Optional[str] = None
-    seriennummer: Optional[str] = None
-    standort: str
+    id: int = Field(..., gt=0, le=2147483647)
+    name: str = Field(..., min_length=1, max_length=255)
+    kategorie: str = Field(..., min_length=1, max_length=255)
+    hersteller: Optional[str] = Field(None, max_length=255)
+    seriennummer: Optional[str] = Field(None, max_length=255)
+    standort: str = Field(..., min_length=1, max_length=255)
     status: str = Field(..., pattern="^(verfügbar|ausgeliehen|defekt)$")
-    bemerkung: Optional[str] = None
+    bemerkung: Optional[str] = Field(None, max_length=500)
+    
+    @validator('name', 'kategorie', 'hersteller', 'seriennummer', 'standort', 'bemerkung', pre=True)
+    def sanitize_strings(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if len(v) > 500:
+                raise ValueError("Input zu lang")
+            # Keine SQL-Injection möglich durch Parameterized Queries, aber dennoch sanitize
+            if '<script' in v.lower() or 'javascript:' in v.lower():
+                raise ValueError("Ungültiges Zeichen in Input")
+        return v
 
 
 class UserCredentials(BaseModel):
-    username: str = Field(..., min_length=3, max_length=100)
-    password: str = Field(..., min_length=6)
+    username: str = Field(..., min_length=3, max_length=MAX_EMAIL_LENGTH)
+    password: str = Field(..., min_length=8, max_length=MAX_PASSWORD_LENGTH)
+    
+    @validator('username')
+    def validate_username(cls, v):
+        if len(v) > MAX_EMAIL_LENGTH:
+            raise ValueError(f"Username zu lang (max {MAX_EMAIL_LENGTH})")
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
+            raise ValueError("Ungültige Email-Format")
+        return v.strip().lower()
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) > MAX_PASSWORD_LENGTH:
+            raise ValueError(f"Passwort zu lang (max {MAX_PASSWORD_LENGTH})")
+        return v
 
 
 @app.get("/")
@@ -189,48 +240,65 @@ def root():
 
 
 @app.post("/api/register")
-def register(credentials: UserCredentials):
+@limiter.limit("5/15 minutes")
+def register(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     validate_password_strength(credentials.password)
+    
     connection = get_connection()
     cursor = connection.cursor()
     ensure_users_table(cursor)
     connection.commit()
+    
     cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
     if cursor.fetchone():
         connection.close()
-        raise HTTPException(status_code=400, detail="E-Mail bereits vergeben")
+        raise HTTPException(status_code=400, detail="User existiert bereits")
+    
     hashed = pwd_context.hash(credentials.password)
-    cursor.execute(
-        "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        (email, hashed)
-    )
-    connection.commit()
-    connection.close()
-    return {"message": "Benutzer erfolgreich registriert"}
+    try:
+        cursor.execute(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+            (email, hashed)
+        )
+        connection.commit()
+        connection.close()
+        logger.info(f"User registriert: {email[:10]}...")
+        return {"message": "Registrierung erfolgreich"}
+    except Exception as e:
+        connection.close()
+        logger.error(f"Register error: {type(e).__name__}")
+        raise HTTPException(status_code=400, detail="Registrierung fehlgeschlagen")
 
 
 @app.post("/api/login")
-def login(credentials: UserCredentials):
+@limiter.limit("5/15 minutes")
+def login(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     connection = get_connection()
     cursor = connection.cursor()
     ensure_users_table(cursor)
     connection.commit()
+    
     cursor.execute(
         "SELECT password_hash FROM users WHERE LOWER(username) = ?",
         (email,)
     )
     row = cursor.fetchone()
     connection.close()
+    
     if not row or not pwd_context.verify(credentials.password, row[0]):
-        raise HTTPException(status_code=401, detail="Falsche E-Mail oder Passwort")
+        logger.warning(f"Failed login attempt: {email[:10]}...")
+        raise HTTPException(status_code=401, detail="Ungültiger Login")
+    
     token = create_token(email)
+    logger.info(f"User logged in: {email[:10]}...")
     return {"access_token": token, "token_type": "bearer", "username": email}
 
 
 @app.get("/api/inventar")
-def get_inventar():
+@limiter.limit("30/15 minutes")
+def get_inventar(request: Request, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -269,7 +337,8 @@ def get_inventar():
 
 
 @app.get("/api/inventar/{item_id}")
-def get_item(item_id: int):
+@limiter.limit("30/15 minutes")
+def get_item(request: Request, item_id: int, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -309,7 +378,8 @@ def get_item(item_id: int):
 
 
 @app.post("/api/inventar")
-def create_item(item: InventarItem, _: str = Depends(verify_token)):
+@limiter.limit("10/15 minutes")
+def create_item(request: Request, item: InventarItem, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -362,7 +432,8 @@ def create_item(item: InventarItem, _: str = Depends(verify_token)):
 
 
 @app.put("/api/inventar/{item_id}")
-def update_item(item_id: int, item: InventarItem, _: str = Depends(verify_token)):
+@limiter.limit("10/15 minutes")
+def update_item(request: Request, item_id: int, item: InventarItem, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -406,7 +477,8 @@ def update_item(item_id: int, item: InventarItem, _: str = Depends(verify_token)
 
 
 @app.delete("/api/inventar/{item_id}")
-def delete_item(item_id: int, _: str = Depends(verify_token)):
+@limiter.limit("10/15 minutes")
+def delete_item(request: Request, item_id: int, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 

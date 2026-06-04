@@ -93,7 +93,7 @@ export default function LoginPage({ onLogin }) {
             </div>
             <div>
               <h1>Inventarverwaltung</h1>
-              <p>TEKO Schweiz</p>
+              <p>Schweizerische Fachschule TEKO</p>
             </div>
           </div>
 
