@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { LogIn, UserPlus, Package } from "lucide-react"
 
 const API_URL =
@@ -21,6 +21,16 @@ export default function LoginPage({ onLogin }) {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
+
+  // Force-reset page styling when LoginPage mounts
+  useEffect(() => {
+    document.body.style.margin = "0"
+    document.body.style.padding = "0"
+    document.body.style.background = "radial-gradient(1200px 700px at 10% 0%, #d7f0ff 0%, #e9f7ff 35%, #f6fbff 100%)"
+    return () => {
+      // Cleanup not needed as next component will override
+    }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()

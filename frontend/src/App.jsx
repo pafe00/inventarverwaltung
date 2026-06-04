@@ -30,10 +30,27 @@ export default function App() {
     localStorage.removeItem("username")
     setToken("")
     setUsername("")
+    // Force re-render by clearing sensitive state
+    setInventar([])
+    setShowForm(false)
+    setActivePage("Dashboard")
   }
 
+  // Monitor token changes and ensure proper page styling
+  useEffect(() => {
+    if (!token) {
+      // Force reset when logged out
+      document.body.style.display = "block"
+      document.body.style.visibility = "visible"
+    }
+  }, [token])
+
   if (!token) {
-    return <LoginPage onLogin={handleLogin} />
+    return (
+      <div style={{ margin: 0, padding: 0, width: "100%", height: "100vh" }}>
+        <LoginPage key="login" onLogin={handleLogin} />
+      </div>
+    )
   }
 
   const emptyForm = {
@@ -251,6 +268,14 @@ export default function App() {
               <button className="bell">
                 <Bell size={22} />
               </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="headerLogoutBtn"
+                  title="Abmelden"
+                >
+                  <LogOut size={22} />
+                </button>
             </div>
           </header>
 
@@ -814,6 +839,25 @@ button {
   background: white;
   cursor: pointer;
 }
+
+  .headerLogoutBtn {
+    width: 62px;
+    height: 62px;
+    border-radius: 12px;
+    border: 1px solid #e5eaf2;
+    background: white;
+    cursor: pointer;
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .headerLogoutBtn:hover {
+    background: #fee2e2;
+    border-color: #fca5a5;
+  }
 
 .cards {
   display: grid;
