@@ -108,6 +108,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_event():
+    """Initialize database tables on app startup"""
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        ensure_users_table(cursor)
+        connection.commit()
+        cursor.close()
+        logger.info("Database initialization completed on startup")
+    except Exception as e:
+        logger.warning(f"Database initialization warning: {e}")
+        # Don't fail startup if DB init fails - it might already exist
+
 DB_PASSWORD = os.getenv("SQL_PASSWORD")
 DB_SERVER = os.getenv("SQL_SERVER", "tcp:inventarsqlg6.database.windows.net,1433")
 DB_DATABASE = os.getenv("SQL_DATABASE", "inventarsqlg6")
@@ -125,25 +140,47 @@ CONNECTION_STRING = (
     f"Pwd={DB_PASSWORD};"
     f"Encrypt={DB_ENCRYPT};"
     f"TrustServerCertificate={DB_TRUST_SERVER_CERT};"
-    f"Connection Timeout={DB_TIMEOUT};"
+    f"Connection Timeout=10;"  # Reduced from 30 to 10 seconds
 )
+
+# Global connection pool (simple cache-like mechanism)
+_db_connection = None
+_db_connection_time = 0
+DB_CONNECTION_TTL = 3600  # Recycle connection every hour
 
 
 def get_connection():
+    """Get a database connection with simple pooling"""
+    global _db_connection, _db_connection_time
+    import time
+    
     if not DB_PASSWORD:
         logger.error("DB_PASSWORD nicht gesetzt")
         raise HTTPException(status_code=500, detail="Serverfehler")
-    try:
-        return pyodbc.connect(CONNECTION_STRING)
-    except pyodbc.Error as exc:
-        logger.error(f"DB Connection Error: {exc}")
-        raise HTTPException(
-            status_code=503,
-            detail="Datenbankverbindung nicht möglich"
-        )
+    
+    # Recycle connection if too old
+    current_time = time.time()
+    if _db_connection is None or (current_time - _db_connection_time) > DB_CONNECTION_TTL:
+        if _db_connection:
+            try:
+                _db_connection.close()
+            except:
+                pass
+        
+        try:
+            _db_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
+            _db_connection_time = current_time
+            logger.info("New DB connection established")
+        except pyodbc.Error as exc:
+            _db_connection = None
+            logger.error(f"DB Connection Error: {exc}")
+            raise HTTPException(status_code=503, detail="Datenbankverbindung nicht möglich")
+    
+    return _db_connection
 
 
 def ensure_users_table(cursor):
+    """Ensure users table exists (called only once on startup)"""
     cursor.execute("""
     IF NOT EXISTS (
         SELECT * FROM sysobjects
@@ -247,53 +284,59 @@ def register(request: Request, credentials: UserCredentials):
     
     connection = get_connection()
     cursor = connection.cursor()
-    ensure_users_table(cursor)
-    connection.commit()
     
-    cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
-    if cursor.fetchone():
-        connection.close()
-        raise HTTPException(status_code=400, detail="User existiert bereits")
-    
-    hashed = pwd_context.hash(credentials.password)
     try:
+        cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="User existiert bereits")
+        
+        hashed = pwd_context.hash(credentials.password)
         cursor.execute(
             "INSERT INTO users (username, password_hash) VALUES (?, ?)",
             (email, hashed)
         )
         connection.commit()
-        connection.close()
         logger.info(f"User registriert: {email[:10]}...")
         return {"message": "Registrierung erfolgreich"}
+    except HTTPException:
+        raise
     except Exception as e:
-        connection.close()
-        logger.error(f"Register error: {type(e).__name__}")
+        connection.rollback()
+        logger.error(f"Register error: {type(e).__name__}: {e}")
         raise HTTPException(status_code=400, detail="Registrierung fehlgeschlagen")
+    finally:
+        try:
+            cursor.close()
+        except:
+            pass
 
 
 @app.post("/api/login")
 @limiter.limit("5/15 minutes")
 def login(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
-    connection = get_connection()
+    connection = get_connection()  # Uses connection pool now (fast!)
     cursor = connection.cursor()
-    ensure_users_table(cursor)
-    connection.commit()
     
-    cursor.execute(
-        "SELECT password_hash FROM users WHERE LOWER(username) = ?",
-        (email,)
-    )
-    row = cursor.fetchone()
-    connection.close()
-    
-    if not row or not pwd_context.verify(credentials.password, row[0]):
-        logger.warning(f"Failed login attempt: {email[:10]}...")
-        raise HTTPException(status_code=401, detail="Ungültiger Login")
-    
-    token = create_token(email)
-    logger.info(f"User logged in: {email[:10]}...")
-    return {"access_token": token, "token_type": "bearer", "username": email}
+    try:
+        cursor.execute(
+            "SELECT password_hash FROM users WHERE LOWER(username) = ?",
+            (email,)
+        )
+        row = cursor.fetchone()
+        
+        if not row or not pwd_context.verify(credentials.password, row[0]):
+            logger.warning(f"Failed login attempt: {email[:10]}...")
+            raise HTTPException(status_code=401, detail="Ungültiger Login")
+        
+        token = create_token(email)
+        logger.info(f"User logged in: {email[:10]}...")
+        return {"access_token": token, "token_type": "bearer", "username": email}
+    finally:
+        try:
+            cursor.close()
+        except:
+            pass
 
 
 @app.get("/api/inventar")
