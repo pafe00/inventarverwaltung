@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0f9ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e0f2fe;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  
+  <!-- Left side: Large package icon -->
+  <g transform="translate(250, 315)">
+    <!-- Box body -->
+    <rect x="-100" y="-60" width="200" height="160" fill="url(#boxGrad)" rx="12" stroke="#1d4ed8" stroke-width="2"/>
+    
+    <!-- Box top -->
+    <polygon points="-100,-60 0,-120 100,-60" fill="#1d4ed8" stroke="#0c3b8f" stroke-width="2"/>
+    
+    <!-- Box sides -->
+    <polygon points="-100,-60 -100,100 -80,120 -80,-40" fill="#1e40af" opacity="0.8"/>
+    <polygon points="100,-60 100,100 80,120 80,-40" fill="#1e40af" opacity="0.8"/>
+    
+    <!-- Glossy highlight -->
+    <ellipse cx="-40" cy="-20" rx="40" ry="25" fill="#ffffff" opacity="0.3"/>
+    
+    <!-- Checkmark -->
+    <g transform="translate(-15, 20)">
+      <path d="M -20 10 L 0 30 L 30 -15" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+  
+  <!-- Right side: Text -->
+  <g transform="translate(650, 200)">
+    <!-- Title -->
+    <text x="0" y="0" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="700" fill="#0f172a">
+      TEKO
+    </text>
+    <text x="0" y="90" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="700" fill="#2563eb">
+      Inventarverwaltung
+    </text>
+    
+    <!-- Subtitle -->
+    <text x="0" y="160" font-family="Inter, Arial, sans-serif" font-size="36" fill="#475569">
+      Cloudbasierte Asset-Verwaltung
+    </text>
+    
+    <!-- Description -->
+    <text x="0" y="220" font-family="Inter, Arial, sans-serif" font-size="28" fill="#64748b">
+      Schweizerische Fachschule TEKO
+    </text>
+  </g>
+</svg>
