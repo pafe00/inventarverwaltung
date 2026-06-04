@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Home, Monitor, MapPin, BarChart3, Settings, Bell, Search, Plus,
   Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
@@ -170,30 +170,24 @@ export default function App() {
   const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
-  const gefiltert = useMemo(() => {
-    return inventar.filter((x) => {
-      const matchesSearch =
-        `${x.name} ${x.kategorie} ${x.hersteller} ${x.standort}`
-          .toLowerCase()
-          .includes(search.toLowerCase())
+  const gefiltert = inventar.filter((x) => {
+    const matchesSearch =
+      `${x.name} ${x.kategorie} ${x.hersteller} ${x.standort}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
 
-      const matchesStatus =
-        statusFilter === "alle" ? true : x.status === statusFilter
+    const matchesStatus =
+      statusFilter === "alle" ? true : x.status === statusFilter
 
-      return matchesSearch && matchesStatus
-    })
-  }, [inventar, search, statusFilter])
+    return matchesSearch && matchesStatus
+  })
 
-  const standorte = useMemo(() => {
-    const gruppiert = {}
-
-    inventar.forEach((item) => {
-      const ort = item.standort || "Unbekannt"
-      gruppiert[ort] = (gruppiert[ort] || 0) + 1
-    })
-
-    return Object.entries(gruppiert)
-  }, [inventar])
+  const gruppiert = {}
+  inventar.forEach((item) => {
+    const ort = item.standort || "Unbekannt"
+    gruppiert[ort] = (gruppiert[ort] || 0) + 1
+  })
+  const standorte = Object.entries(gruppiert)
 
   return (
     <>
