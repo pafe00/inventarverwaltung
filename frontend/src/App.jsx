@@ -76,6 +76,13 @@ export default function App() {
   }
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(true)
+  const [activityFeedOpen, setActivityFeedOpen] = useState(false)
+  const [activityItems, setActivityItems] = useState([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityError, setActivityError] = useState("")
+  const [lastSeenAt, setLastSeenAt] = useState("")
+
+  const activitySeenKey = username ? `activity_last_seen_${username}` : "activity_last_seen"
 
   function handleLogin(newToken, newUsername) {
     setToken(newToken)
@@ -88,13 +95,29 @@ export default function App() {
     setToken("")
     setUsername("")
     setInventar([])
+    setActivityItems([])
+    setActivityFeedOpen(false)
+    setActivityError("")
+    setLastSeenAt("")
     setShowForm(false)
     setActivePage("Dashboard")
   }
 
   useEffect(() => {
+    if (!username) return
+    setLastSeenAt(localStorage.getItem(`activity_last_seen_${username}`) || "")
+  }, [username])
+
+  useEffect(() => {
     if (token) {
       ladeInventar()
+      ladeActivityFeed()
+
+      const poller = setInterval(() => {
+        ladeActivityFeed({ silent: true })
+      }, 20000)
+
+      return () => clearInterval(poller)
     }
   }, [token])
 
@@ -124,6 +147,50 @@ export default function App() {
       setInventar([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function ladeActivityFeed(options = {}) {
+    const { silent = false } = options
+    if (!token) return
+
+    try {
+      if (!silent) setActivityLoading(true)
+
+      const res = await fetch(`${API_URL}/api/activity?limit=25`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+
+      if (res.status === 401) {
+        handleLogout()
+        return
+      }
+
+      if (!res.ok) {
+        if (!silent) setActivityError("Activity Feed konnte nicht geladen werden")
+        return
+      }
+
+      const data = await res.json()
+      setActivityItems(Array.isArray(data) ? data : [])
+      setActivityError("")
+    } catch (err) {
+      console.error("Fehler beim Laden des Activity Feeds:", err)
+      if (!silent) setActivityError("Verbindung zum Activity Feed fehlgeschlagen")
+    } finally {
+      if (!silent) setActivityLoading(false)
+    }
+  }
+
+  function toggleActivityFeed() {
+    const nextState = !activityFeedOpen
+    setActivityFeedOpen(nextState)
+
+    if (nextState) {
+      ladeActivityFeed()
+      const seenAt = new Date().toISOString()
+      localStorage.setItem(activitySeenKey, seenAt)
+      setLastSeenAt(seenAt)
     }
   }
 
@@ -271,6 +338,10 @@ export default function App() {
     ? DEVICE_CATALOG[form.hersteller][form.kategorie]
     : []
 
+  const unreadCount = activityItems.filter((entry) =>
+    isActivityUnread(entry.created_at, lastSeenAt)
+  ).length
+
   return (
     <>
       <style>{css}</style>
@@ -333,9 +404,27 @@ export default function App() {
                 </div>
               )}
 
-              <button className="bell">
-                <Bell size={22} />
-              </button>
+              <div className="activityWrap">
+                <button
+                  className={activityFeedOpen ? "bell active" : "bell"}
+                  onClick={toggleActivityFeed}
+                  title="Activity Feed"
+                >
+                  <Bell size={22} />
+                  {unreadCount > 0 && (
+                    <span className="bellBadge">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                  )}
+                </button>
+
+                {activityFeedOpen && (
+                  <ActivityFeedPanel
+                    items={activityItems}
+                    loading={activityLoading}
+                    error={activityError}
+                    lastSeenAt={lastSeenAt}
+                  />
+                )}
+              </div>
 
                 <button
                   onClick={handleLogout}
@@ -785,7 +874,7 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
         <thead>
           <tr>
             <th>ID</th>
-              <th>Modell</th>
+            <th>Modell</th>
             <th>Kategorie</th>
             <th>Hersteller</th>
             <th>Standort</th>
@@ -809,7 +898,7 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
                 </div>
               </td>
 
-                <th>Modell</th>
+              <td>{item.kategorie}</td>
               <td>{item.hersteller}</td>
               <td>{item.standort}</td>
               <td>
@@ -873,6 +962,71 @@ function getIcon(kategorie = "") {
   if (k.includes("zubehör")) return <Keyboard size={20} />
   if (k.includes("netzwerk")) return <Server size={20} />
   return <Laptop size={20} />
+}
+
+function isActivityUnread(createdAt, lastSeenAt) {
+  if (!createdAt) return false
+  if (!lastSeenAt) return true
+  const createdTs = Date.parse(createdAt)
+  const seenTs = Date.parse(lastSeenAt)
+  if (Number.isNaN(createdTs) || Number.isNaN(seenTs)) return false
+  return createdTs > seenTs
+}
+
+function formatActivityTime(createdAt) {
+  const ts = Date.parse(createdAt)
+  if (Number.isNaN(ts)) return "-"
+  return new Date(ts).toLocaleString("de-CH", {
+    dateStyle: "short",
+    timeStyle: "short",
+  })
+}
+
+function activityActionLabel(action) {
+  if (action === "create") return "hat ein Gerät erstellt"
+  if (action === "update") return "hat ein Gerät aktualisiert"
+  if (action === "delete") return "hat ein Gerät gelöscht"
+  return "hat eine Änderung durchgeführt"
+}
+
+function ActivityFeedPanel({ items, loading, error, lastSeenAt }) {
+  return (
+    <div className="activityPanel">
+      <div className="activityHeader">
+        <h3>Activity Feed</h3>
+        <p>inkl. eigene Änderungen</p>
+      </div>
+
+      {loading && items.length === 0 && <p className="activityInfo">Lade Aktivitäten...</p>}
+      {error && <p className="activityError">{error}</p>}
+
+      {!loading && !error && items.length === 0 && (
+        <p className="activityInfo">Noch keine Aktivitäten vorhanden.</p>
+      )}
+
+      {items.length > 0 && (
+        <ul className="activityList">
+          {items.map((entry) => {
+            const unread = isActivityUnread(entry.created_at, lastSeenAt)
+            return (
+              <li key={entry.id} className={unread ? "activityItem unread" : "activityItem"}>
+                <div className="activityTopLine">
+                  <strong>{entry.actor || "Unbekannt"}</strong>
+                  <span>{activityActionLabel(entry.action)}</span>
+                </div>
+                <p className="activityDevice">
+                  {entry.item_name || "Gerät"}
+                  {entry.item_id ? ` (#${entry.item_id})` : ""}
+                </p>
+                <p className="activityDetails">{entry.details || ""}</p>
+                <time>{formatActivityTime(entry.created_at)}</time>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 const css = `
@@ -1042,6 +1196,7 @@ button {
 .topRight {
   display: flex;
   gap: 16px;
+  position: relative;
 }
 
 .search {
@@ -1071,6 +1226,122 @@ button {
   border: 1px solid #e5eaf2;
   background: white;
   cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bell.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.activityWrap {
+  position: relative;
+}
+
+.bellBadge {
+  position: absolute;
+  top: 10px;
+  right: 9px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+.activityPanel {
+  position: absolute;
+  top: 74px;
+  right: 0;
+  width: 390px;
+  max-height: 560px;
+  overflow: auto;
+  border: 1px solid #dbe3ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  z-index: 100;
+}
+
+.activityHeader {
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5eaf2;
+}
+
+.activityHeader h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.activityHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.activityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activityItem {
+  padding: 14px 18px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.activityItem.unread {
+  background: #f8fbff;
+}
+
+.activityTopLine {
+  display: flex;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.activityTopLine strong {
+  color: #0f172a;
+}
+
+.activityDevice {
+  margin: 6px 0 4px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.activityDetails {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.activityItem time {
+  display: block;
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.activityInfo,
+.activityError {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: 14px;
+}
+
+.activityError {
+  color: #dc2626;
 }
 
   .headerLogoutBtn {
@@ -1411,6 +1682,11 @@ td {
 
   .cards {
     grid-template-columns: 1fr;
+  }
+
+  .activityPanel {
+    right: -78px;
+    width: min(92vw, 390px);
   }
 }
 

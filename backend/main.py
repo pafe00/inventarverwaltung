@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -147,6 +147,7 @@ def startup_event():
         cursor = connection.cursor()
         ensure_users_table(cursor)
         ensure_inventar_table(cursor)
+        ensure_activity_log_table(cursor)
         ensure_inventar_id_sequence(cursor)
         connection.commit()
         cursor.close()
@@ -222,6 +223,52 @@ def ensure_inventar_table(cursor):
         bemerkung NVARCHAR(500)
     )
     """)
+
+    cursor.execute("""
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = 'UQ_inventar_seriennummer_not_null'
+          AND object_id = OBJECT_ID('dbo.inventar')
+    )
+    CREATE UNIQUE INDEX UQ_inventar_seriennummer_not_null
+    ON dbo.inventar (seriennummer)
+    WHERE seriennummer IS NOT NULL
+    """)
+
+
+def ensure_activity_log_table(cursor):
+    cursor.execute("""
+    IF NOT EXISTS (
+        SELECT * FROM sysobjects
+        WHERE name='activity_log' AND xtype='U'
+    )
+    CREATE TABLE activity_log (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        action NVARCHAR(50) NOT NULL,
+        item_id INT NULL,
+        item_name NVARCHAR(255) NULL,
+        actor NVARCHAR(255) NOT NULL,
+        details NVARCHAR(500) NULL,
+        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    )
+    """)
+
+
+def log_activity(cursor, action: str, actor: str, item_id: Optional[int] = None, item_name: Optional[str] = None, details: Optional[str] = None):
+    cursor.execute(
+        """
+        INSERT INTO activity_log (action, item_id, item_name, actor, details)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            action,
+            item_id,
+            item_name,
+            actor,
+            details,
+        ),
+    )
 
 
 def ensure_inventar_id_sequence(cursor):
@@ -474,7 +521,7 @@ def get_item(request: Request, item_id: int, username: str = Depends(verify_toke
 
 @app.post("/api/inventar")
 @limiter.limit("10/15 minutes")
-def create_item(request: Request, item: InventarItemPayload, _: str = Depends(verify_token)):
+def create_item(request: Request, item: InventarItemPayload, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
     serial = normalize_serial(item.seriennummer)
@@ -513,6 +560,15 @@ def create_item(request: Request, item: InventarItemPayload, _: str = Depends(ve
         )
     )
 
+    log_activity(
+        cursor,
+        action="create",
+        actor=username,
+        item_id=generated_id,
+        item_name=item.name,
+        details=f"Gerät erstellt ({item.kategorie}, {item.status}, {item.standort})",
+    )
+
     connection.commit()
     connection.close()
 
@@ -535,10 +591,24 @@ def create_item(request: Request, item: InventarItemPayload, _: str = Depends(ve
 
 @app.put("/api/inventar/{item_id}")
 @limiter.limit("10/15 minutes")
-def update_item(request: Request, item_id: int, item: InventarItemPayload, _: str = Depends(verify_token)):
+def update_item(request: Request, item_id: int, item: InventarItemPayload, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
     serial = normalize_serial(item.seriennummer)
+
+    cursor.execute(
+        "SELECT name, status, standort FROM inventar WHERE id = ?",
+        (item_id,)
+    )
+    existing_row = cursor.fetchone()
+    if not existing_row:
+        connection.close()
+        raise HTTPException(
+            status_code=404,
+            detail="Gerät nicht gefunden"
+        )
+
+    previous_name, previous_status, previous_location = existing_row
 
     if serial:
         cursor.execute("SELECT id FROM inventar WHERE seriennummer = ? AND id <> ?", (serial, item_id))
@@ -570,12 +640,20 @@ def update_item(request: Request, item_id: int, item: InventarItemPayload, _: st
         )
     )
 
-    if cursor.rowcount == 0:
-        connection.close()
-        raise HTTPException(
-            status_code=404,
-            detail="Gerät nicht gefunden"
-        )
+    details = f"Gerät aktualisiert ({item.kategorie}, {item.status}, {item.standort})"
+    if previous_status != item.status:
+        details = f"Status geändert: {previous_status} -> {item.status}"
+    elif previous_location != item.standort:
+        details = f"Standort geändert: {previous_location} -> {item.standort}"
+
+    log_activity(
+        cursor,
+        action="update",
+        actor=username,
+        item_id=item_id,
+        item_name=item.name or previous_name,
+        details=details,
+    )
 
     connection.commit()
     connection.close()
@@ -587,21 +665,34 @@ def update_item(request: Request, item_id: int, item: InventarItemPayload, _: st
 
 @app.delete("/api/inventar/{item_id}")
 @limiter.limit("10/15 minutes")
-def delete_item(request: Request, item_id: int, _: str = Depends(verify_token)):
+def delete_item(request: Request, item_id: int, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
+
+    cursor.execute("SELECT name FROM inventar WHERE id = ?", (item_id,))
+    existing_row = cursor.fetchone()
+    if not existing_row:
+        connection.close()
+        raise HTTPException(
+            status_code=404,
+            detail="Gerät nicht gefunden"
+        )
+
+    existing_name = existing_row[0]
 
     cursor.execute(
         "DELETE FROM inventar WHERE id = ?",
         (item_id,)
     )
 
-    if cursor.rowcount == 0:
-        connection.close()
-        raise HTTPException(
-            status_code=404,
-            detail="Gerät nicht gefunden"
-        )
+    log_activity(
+        cursor,
+        action="delete",
+        actor=username,
+        item_id=item_id,
+        item_name=existing_name,
+        details="Gerät gelöscht",
+    )
 
     connection.commit()
     connection.close()
@@ -609,6 +700,53 @@ def delete_item(request: Request, item_id: int, _: str = Depends(verify_token)):
     return {
         "message": "Gerät wurde gelöscht"
     }
+
+
+@app.get("/api/activity")
+@limiter.limit("30/15 minutes")
+def get_activity(request: Request, limit: int = Query(default=25, ge=1, le=100), _: str = Depends(verify_token)):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            id,
+            action,
+            item_id,
+            item_name,
+            actor,
+            details,
+            created_at
+        FROM activity_log
+        ORDER BY created_at DESC
+        OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY
+        """,
+        (limit,)
+    )
+
+    rows = cursor.fetchall()
+    connection.close()
+
+    result = []
+    for row in rows:
+        created_at = row[6]
+        if isinstance(created_at, datetime):
+            created_at_value = created_at.replace(tzinfo=timezone.utc).isoformat()
+        else:
+            created_at_value = str(created_at)
+
+        result.append({
+            "id": row[0],
+            "action": row[1],
+            "item_id": row[2],
+            "item_name": row[3],
+            "actor": row[4],
+            "details": row[5],
+            "created_at": created_at_value,
+        })
+
+    return result
 
 
 @app.get("/api/dashboard")
