@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import {
   Home, Monitor, MapPin, BarChart3, Settings, Bell, Search, Plus,
   Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
-  Keyboard, Server, ChevronRight, Package, LogOut
+  Keyboard, Server, ChevronRight, LogOut
 } from "lucide-react"
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import LoginPage from "./LoginPage"
@@ -571,7 +571,7 @@ export default function App() {
           <div>
             <div className="brand">
               <div className="brandIcon">
-                <Package size={30} />
+                <img src="/teko-logo.svg" alt="TEKO Logo" />
               </div>
 
               <div>
@@ -1097,7 +1097,7 @@ function DashboardPage({ inventar, standorte }) {
                 labelLine={false}
                 label={({ name, value }) => `${name}: ${value}`}
                 outerRadius={80}
-                fill="#8884d8"
+                fill="#e6007e"
                 dataKey="value"
               >
                 {statusData.map((entry, index) => (
@@ -1113,11 +1113,11 @@ function DashboardPage({ inventar, standorte }) {
           <h3>Geräte nach Standort</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={standortData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f9c5df" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="count" fill="#2563eb" />
+              <Bar dataKey="count" fill="#e6007e" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1207,7 +1207,7 @@ function ReportPage({ inventar, standorte }) {
           <h3>Standorte nach Status</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={standortStatusData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f9c5df" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
@@ -1223,11 +1223,11 @@ function ReportPage({ inventar, standorte }) {
           <h3>Top Kategorien</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={kategorieData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f9c5df" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="count" fill="#2563eb" />
+              <Bar dataKey="count" fill="#e6007e" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1496,13 +1496,21 @@ button {
 }
 
 .brandIcon {
-  width: 68px;
-  height: 68px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #38bdf8, #4f46e5);
+  width: 132px;
+  height: 72px;
+  border-radius: 12px;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.brandIcon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand h2 {
@@ -1538,9 +1546,9 @@ button {
 }
 
 .nav.active {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, #e6007e, #b0005f);
   color: white;
-  box-shadow: 0 14px 30px rgba(37, 99, 235, .35);
+  box-shadow: 0 14px 30px rgba(230, 0, 126, .35);
 }
 
 .user {
@@ -1569,7 +1577,7 @@ button {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  background: linear-gradient(135deg, #ff4cab, #c10068);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1660,8 +1668,8 @@ button {
 }
 
 .bell.active {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  border-color: #f9a8d4;
+  background: #fdf2f8;
 }
 
 .activityWrap {
@@ -2073,7 +2081,7 @@ button {
 }
 
 .activeCard {
-  outline: 3px solid #2563eb;
+  outline: 3px solid #e6007e;
 }
 
 .cardIcon {
@@ -2101,12 +2109,12 @@ button {
   font-size: 38px;
 }
 
-.blue { color: #2563eb; }
+.blue { color: #e6007e; }
 .green { color: #16a34a; }
 .orange { color: #ea580c; }
 .red { color: #dc2626; }
 
-.cardIcon.blue { background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; }
+.cardIcon.blue { background: linear-gradient(135deg, #e6007e, #b0005f); color: white; }
 .cardIcon.green { background: linear-gradient(135deg, #22c55e, #4ade80); color: white; }
 .cardIcon.orange { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; }
 .cardIcon.red { background: linear-gradient(135deg, #ef4444, #f87171); color: white; }
@@ -2140,7 +2148,7 @@ button {
   padding: 0 20px;
   border: 0;
   border-radius: 8px;
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #e6007e, #b0005f);
   color: white;
   display: flex;
   align-items: center;
@@ -2183,8 +2191,8 @@ td {
   width: 48px;
   height: 48px;
   border-radius: 10px;
-  background: #eaf1ff;
-  color: #2563eb;
+  background: #fde6f2;
+  color: #e6007e;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2240,7 +2248,7 @@ td {
 }
 
 .edit {
-  color: #2563eb;
+  color: #e6007e;
 }
 
 .delete {
@@ -2333,7 +2341,7 @@ td {
   margin-top: 20px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #e6007e, #b0005f);
   color: white;
   font-size: 16px;
   font-weight: 700;
@@ -2443,7 +2451,7 @@ td {
 }
 
 .kpiIcon.blue {
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  background: linear-gradient(135deg, #e6007e, #b0005f);
 }
 
 .kpiIcon.green {

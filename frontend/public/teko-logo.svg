@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" role="img" aria-labelledby="title desc">
+  <title id="title">Schweizerische Fachschule TEKO</title>
+  <desc id="desc">TEKO wordmark with school name</desc>
+
+  <text x="0" y="24" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#101828">
+    Schweizerische
+  </text>
+  <text x="0" y="50" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#101828">
+    Fachschule
+  </text>
+
+  <text x="0" y="106" font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="86" font-weight="900" letter-spacing="1" fill="#e6007e">
+    TEKO
+  </text>
+</svg>
