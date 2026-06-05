@@ -83,6 +83,17 @@ function loadJsonSetting(key, fallbackValue) {
   }
 }
 
+function loadArraySetting(key, fallbackValue = []) {
+  try {
+    const rawValue = localStorage.getItem(key)
+    if (!rawValue) return fallbackValue
+    const parsedValue = JSON.parse(rawValue)
+    return Array.isArray(parsedValue) ? parsedValue : fallbackValue
+  } catch {
+    return fallbackValue
+  }
+}
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")
   const [username, setUsername] = useState(() => localStorage.getItem("username") || "")
@@ -107,15 +118,26 @@ export default function App() {
   const [sortBy, setSortBy] = useState(() => localStorage.getItem("inventar_sort_by") || "id")
   const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("inventar_sort_direction") || "asc")
   const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem("inventar_page_size") || "25"))
+  const [defaultInventarStandort, setDefaultInventarStandort] = useState(() => localStorage.getItem("inventar_default_standort") || "")
+  const [defaultInventarStatus, setDefaultInventarStatus] = useState(() => localStorage.getItem("inventar_default_status") || "verfügbar")
+  const [requireSerialNumber, setRequireSerialNumber] = useState(
+    () => (localStorage.getItem("inventar_require_serial") ?? "false") === "true"
+  )
+  const [requireBemerkung, setRequireBemerkung] = useState(
+    () => (localStorage.getItem("inventar_require_bemerkung") ?? "false") === "true"
+  )
+  const [customStandorte, setCustomStandorte] = useState(() => loadArraySetting("inventar_custom_standorte", []))
+  const [newStandortInput, setNewStandortInput] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("alle")
+  const standortOptionen = [...new Set([...TEKO_STANDORTE, ...customStandorte])]
   const emptyForm = {
     name: "",
     kategorie: "",
     hersteller: "",
     seriennummer: "",
-    standort: "",
-    status: "verfügbar",
+    standort: defaultInventarStandort,
+    status: defaultInventarStatus,
     bemerkung: "",
   }
   const [form, setForm] = useState(emptyForm)
@@ -194,6 +216,26 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("inventar_page_size", String(pageSize))
   }, [pageSize])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_default_standort", defaultInventarStandort)
+  }, [defaultInventarStandort])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_default_status", defaultInventarStatus)
+  }, [defaultInventarStatus])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_require_serial", String(requireSerialNumber))
+  }, [requireSerialNumber])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_require_bemerkung", String(requireBemerkung))
+  }, [requireBemerkung])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_custom_standorte", JSON.stringify(customStandorte))
+  }, [customStandorte])
 
   useEffect(() => {
     document.body.style.background = resolvedTheme === "dark" ? "#0b1220" : "#f4f7fb"
@@ -310,6 +352,29 @@ export default function App() {
     })
   }
 
+  function addCustomStandort() {
+    const normalized = newStandortInput.trim()
+    if (!normalized) return
+
+    const existsAlready = standortOptionen.some(
+      (existing) => existing.toLowerCase() === normalized.toLowerCase()
+    )
+    if (existsAlready) {
+      setNewStandortInput("")
+      return
+    }
+
+    setCustomStandorte((current) => [...current, normalized])
+    setNewStandortInput("")
+  }
+
+  function removeCustomStandort(ort) {
+    setCustomStandorte((current) => current.filter((entry) => entry !== ort))
+    if (defaultInventarStandort === ort) {
+      setDefaultInventarStandort("")
+    }
+  }
+
   function openAddForm() {
     setEditingId(null)
     setForm(emptyForm)
@@ -318,7 +383,7 @@ export default function App() {
 
   function openEditForm(item) {
     setEditingId(item.id)
-    const standort = TEKO_STANDORTE.includes(item.standort) ? item.standort : ""
+    const standort = standortOptionen.includes(item.standort) ? item.standort : ""
     const hersteller = HERSTELLER_OPTIONEN.includes(item.hersteller) ? item.hersteller : ""
     const kategorieOptionen = hersteller ? Object.keys(DEVICE_CATALOG[hersteller]) : []
     const kategorie = kategorieOptionen.includes(item.kategorie) ? item.kategorie : ""
@@ -360,6 +425,16 @@ export default function App() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+
+    if (requireSerialNumber && !form.seriennummer.trim()) {
+      alert("Seriennummer ist in deinen Einstellungen als Pflichtfeld gesetzt.")
+      return
+    }
+
+    if (requireBemerkung && !form.bemerkung.trim()) {
+      alert("Bemerkung ist in deinen Einstellungen als Pflichtfeld gesetzt.")
+      return
+    }
 
     const item = {
       name: form.name,
@@ -444,7 +519,7 @@ export default function App() {
     return matchesSearch && matchesStatus
   })
 
-  const standorte = TEKO_STANDORTE.map((ort) => {
+  const standorte = standortOptionen.map((ort) => {
     const anzahl = inventar.filter((item) => item.standort === ort).length
     return [ort, anzahl]
   })
@@ -589,7 +664,7 @@ export default function App() {
           </header>
 
           {activePage === "Dashboard" && (
-            <DashboardPage inventar={inventar} standorte={TEKO_STANDORTE} />
+            <DashboardPage inventar={inventar} standorte={standortOptionen} />
           )}
 
           {activePage === "Inventar" && (
@@ -703,7 +778,7 @@ export default function App() {
           )}
 
           {activePage === "Berichte" && (
-            <ReportPage inventar={inventar} standorte={TEKO_STANDORTE} />
+            <ReportPage inventar={inventar} standorte={standortOptionen} />
           )}
 
           {activePage === "Einstellungen" && (
@@ -770,6 +845,25 @@ export default function App() {
                   </select>
                 </label>
 
+                <label>
+                  Standard-Standort (Neues Gerät)
+                  <select value={defaultInventarStandort} onChange={(e) => setDefaultInventarStandort(e.target.value)}>
+                    <option value="">Kein Standard</option>
+                    {standortOptionen.map((ort) => (
+                      <option key={ort} value={ort}>{ort}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Standard-Status (Neues Gerät)
+                  <select value={defaultInventarStatus} onChange={(e) => setDefaultInventarStatus(e.target.value)}>
+                    <option value="verfügbar">verfügbar</option>
+                    <option value="ausgeliehen">ausgeliehen</option>
+                    <option value="defekt">defekt</option>
+                  </select>
+                </label>
+
                 <label className="checkboxSetting">
                   <input
                     type="checkbox"
@@ -777,6 +871,24 @@ export default function App() {
                     onChange={(e) => setCompactMode(e.target.checked)}
                   />
                   Kompaktmodus für Tabellen aktivieren
+                </label>
+
+                <label className="checkboxSetting">
+                  <input
+                    type="checkbox"
+                    checked={requireSerialNumber}
+                    onChange={(e) => setRequireSerialNumber(e.target.checked)}
+                  />
+                  Seriennummer im Formular als Pflichtfeld setzen
+                </label>
+
+                <label className="checkboxSetting">
+                  <input
+                    type="checkbox"
+                    checked={requireBemerkung}
+                    onChange={(e) => setRequireBemerkung(e.target.checked)}
+                  />
+                  Bemerkung im Formular als Pflichtfeld setzen
                 </label>
 
                 <label className="checkboxSetting">
@@ -802,6 +914,32 @@ export default function App() {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                <div className="columnSettings">
+                  <p>Eigene Standorte (leichtes Stammdaten-MVP)</p>
+                  <div className="locationManagerRow">
+                    <input
+                      value={newStandortInput}
+                      onChange={(e) => setNewStandortInput(e.target.value)}
+                      placeholder="Neuen Standort hinzufügen"
+                    />
+                    <button type="button" className="add" onClick={addCustomStandort}>
+                      Standort hinzufügen
+                    </button>
+                  </div>
+                  {customStandorte.length === 0 ? (
+                    <p className="settingsHint">Noch keine eigenen Standorte hinzugefügt.</p>
+                  ) : (
+                    <div className="locationChips">
+                      {customStandorte.map((ort) => (
+                        <span className="locationChip" key={ort}>
+                          {ort}
+                          <button type="button" onClick={() => removeCustomStandort(ort)}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -854,10 +992,11 @@ export default function App() {
                   onChange={handleChange}
                   pattern="[A-Za-z0-9][A-Za-z0-9\-_/\.]{5,39}"
                   title="Optional: 6-40 Zeichen, erlaubt A-Z 0-9 sowie - _ . /"
+                  required={requireSerialNumber}
                 />
                 <select name="standort" value={form.standort} onChange={handleChange} required>
                   <option value="" disabled>Standort wählen</option>
-                  {TEKO_STANDORTE.map((ort) => (
+                  {standortOptionen.map((ort) => (
                     <option key={ort} value={ort}>{ort}</option>
                   ))}
                 </select>
@@ -868,7 +1007,13 @@ export default function App() {
                   <option value="defekt">defekt</option>
                 </select>
 
-                <input name="bemerkung" placeholder="Bemerkung" value={form.bemerkung} onChange={handleChange} />
+                <input
+                  name="bemerkung"
+                  placeholder="Bemerkung"
+                  value={form.bemerkung}
+                  onChange={handleChange}
+                  required={requireBemerkung}
+                />
               </div>
 
               <button className="save" type="submit">
@@ -1672,6 +1817,14 @@ button {
   font-size: 14px;
 }
 
+.settingsGrid input {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ee;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
 .checkboxSetting {
   grid-column: 1 / -1;
   flex-direction: row !important;
@@ -1712,6 +1865,50 @@ button {
   align-items: center;
   gap: 8px !important;
   font-weight: 500 !important;
+}
+
+.locationManagerRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.locationManagerRow .add {
+  margin: 0;
+  height: 44px;
+}
+
+.settingsHint {
+  margin-top: 10px !important;
+  color: #64748b !important;
+  font-size: 13px !important;
+}
+
+.locationChips {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.locationChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+  background: #f8fafc;
+  font-size: 13px;
+}
+
+.locationChip button {
+  border: 0;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 16px;
 }
 
 .tablePagination {
@@ -1791,6 +1988,7 @@ button {
 .layout.theme-dark .edit,
 .layout.theme-dark .delete,
 .layout.theme-dark .settingsGrid select,
+ .layout.theme-dark .settingsGrid input,
 .layout.theme-dark .formGrid input,
 .layout.theme-dark .formGrid select {
   background: #111827;
@@ -1825,6 +2023,15 @@ button {
 .layout.theme-dark .tablePagination,
 .layout.theme-dark .tablePaginationControls span {
   color: #cbd5e1;
+}
+
+.layout.theme-dark .settingsHint {
+  color: #94a3b8 !important;
+}
+
+.layout.theme-dark .locationChip {
+  background: #0f172a;
+  border-color: #334155;
 }
 
   .headerLogoutBtn {
