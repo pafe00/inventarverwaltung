@@ -63,7 +63,18 @@ export default function App() {
   const [search, setSearch] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [activePage, setActivePage] = useState("Dashboard")
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem("theme_mode") || "system")
+  const [defaultPage, setDefaultPage] = useState(() => localStorage.getItem("default_page") || "Dashboard")
+  const [feedScope, setFeedScope] = useState(() => localStorage.getItem("feed_scope") || "all")
+  const [markSeenOnOpen, setMarkSeenOnOpen] = useState(
+    () => (localStorage.getItem("feed_mark_seen_on_open") ?? "true") === "true"
+  )
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : false
+  )
+  const [activePage, setActivePage] = useState(() => localStorage.getItem("default_page") || "Dashboard")
   const [statusFilter, setStatusFilter] = useState("alle")
   const emptyForm = {
     name: "",
@@ -87,6 +98,7 @@ export default function App() {
   function handleLogin(newToken, newUsername) {
     setToken(newToken)
     setUsername(newUsername)
+    setActivePage(defaultPage)
   }
 
   function handleLogout() {
@@ -100,8 +112,39 @@ export default function App() {
     setActivityError("")
     setLastSeenAt("")
     setShowForm(false)
-    setActivePage("Dashboard")
+    setActivePage(defaultPage)
   }
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+    const onChange = (event) => setSystemPrefersDark(event.matches)
+    mediaQuery.addEventListener("change", onChange)
+    return () => mediaQuery.removeEventListener("change", onChange)
+  }, [])
+
+  const resolvedTheme = themeMode === "system"
+    ? (systemPrefersDark ? "dark" : "light")
+    : themeMode
+
+  useEffect(() => {
+    localStorage.setItem("theme_mode", themeMode)
+  }, [themeMode])
+
+  useEffect(() => {
+    localStorage.setItem("default_page", defaultPage)
+  }, [defaultPage])
+
+  useEffect(() => {
+    localStorage.setItem("feed_scope", feedScope)
+  }, [feedScope])
+
+  useEffect(() => {
+    localStorage.setItem("feed_mark_seen_on_open", String(markSeenOnOpen))
+  }, [markSeenOnOpen])
+
+  useEffect(() => {
+    document.body.style.background = resolvedTheme === "dark" ? "#0b1220" : "#f4f7fb"
+  }, [resolvedTheme])
 
   useEffect(() => {
     if (!username) return
@@ -188,10 +231,16 @@ export default function App() {
 
     if (nextState) {
       ladeActivityFeed()
-      const seenAt = new Date().toISOString()
-      localStorage.setItem(activitySeenKey, seenAt)
-      setLastSeenAt(seenAt)
+      if (markSeenOnOpen) {
+        markActivityAsSeen()
+      }
     }
+  }
+
+  function markActivityAsSeen() {
+    const seenAt = new Date().toISOString()
+    localStorage.setItem(activitySeenKey, seenAt)
+    setLastSeenAt(seenAt)
   }
 
   function openAddForm() {
@@ -338,7 +387,12 @@ export default function App() {
     ? DEVICE_CATALOG[form.hersteller][form.kategorie]
     : []
 
-  const unreadCount = activityItems.filter((entry) =>
+  const sichtbareActivityItems = activityItems.filter((entry) => {
+    if (feedScope === "all") return true
+    return (entry.actor || "").toLowerCase() === (username || "").toLowerCase()
+  })
+
+  const unreadCount = sichtbareActivityItems.filter((entry) =>
     isActivityUnread(entry.created_at, lastSeenAt)
   ).length
 
@@ -346,7 +400,7 @@ export default function App() {
     <>
       <style>{css}</style>
 
-      <div className="layout">
+      <div className={resolvedTheme === "dark" ? "layout theme-dark" : "layout"}>
         <aside className="sidebar">
           <div>
             <div className="brand">
@@ -418,10 +472,11 @@ export default function App() {
 
                 {activityFeedOpen && (
                   <ActivityFeedPanel
-                    items={activityItems}
+                    items={sichtbareActivityItems}
                     loading={activityLoading}
                     error={activityError}
                     lastSeenAt={lastSeenAt}
+                    onMarkSeen={markActivityAsSeen}
                   />
                 )}
               </div>
@@ -526,14 +581,57 @@ export default function App() {
           )}
 
           {activePage === "Einstellungen" && (
-            <section className="tableBox report">
+            <section className="tableBox report settingsPanel">
               <h2>Einstellungen</h2>
-              <p>API-Verbindung:</p>
-              <code>{API_URL}</code>
-              <br />
-              <button className="add small" onClick={ladeInventar}>
-                Daten neu laden
-              </button>
+              <p>Personalisierung und Verhalten der App</p>
+
+              <div className="settingsGrid">
+                <label>
+                  Theme
+                  <select value={themeMode} onChange={(e) => setThemeMode(e.target.value)}>
+                    <option value="system">System</option>
+                    <option value="light">Hell</option>
+                    <option value="dark">Dunkel</option>
+                  </select>
+                </label>
+
+                <label>
+                  Startseite nach Login
+                  <select value={defaultPage} onChange={(e) => setDefaultPage(e.target.value)}>
+                    <option value="Dashboard">Dashboard</option>
+                    <option value="Inventar">Inventar</option>
+                    <option value="Standorte">Standorte</option>
+                    <option value="Berichte">Berichte</option>
+                    <option value="Einstellungen">Einstellungen</option>
+                  </select>
+                </label>
+
+                <label>
+                  Activity Feed
+                  <select value={feedScope} onChange={(e) => setFeedScope(e.target.value)}>
+                    <option value="all">Alle Aktivitäten</option>
+                    <option value="mine">Nur meine Aktivitäten</option>
+                  </select>
+                </label>
+
+                <label className="checkboxSetting">
+                  <input
+                    type="checkbox"
+                    checked={markSeenOnOpen}
+                    onChange={(e) => setMarkSeenOnOpen(e.target.checked)}
+                  />
+                  Ungelesene Einträge beim Öffnen automatisch als gelesen markieren
+                </label>
+              </div>
+
+              <div className="settingsActions">
+                <button className="add small" onClick={ladeInventar}>
+                  Daten neu laden
+                </button>
+                <button className="edit" type="button" onClick={ladeActivityFeed}>
+                  Feed aktualisieren
+                </button>
+              </div>
             </section>
           )}
         </main>
@@ -989,12 +1087,17 @@ function activityActionLabel(action) {
   return "hat eine Änderung durchgeführt"
 }
 
-function ActivityFeedPanel({ items, loading, error, lastSeenAt }) {
+function ActivityFeedPanel({ items, loading, error, lastSeenAt, onMarkSeen }) {
   return (
     <div className="activityPanel">
       <div className="activityHeader">
-        <h3>Activity Feed</h3>
-        <p>inkl. eigene Änderungen</p>
+        <div>
+          <h3>Activity Feed</h3>
+          <p>inkl. eigene Änderungen</p>
+        </div>
+        <button type="button" className="markSeenBtn" onClick={onMarkSeen}>
+          Als gelesen
+        </button>
       </div>
 
       {loading && items.length === 0 && <p className="activityInfo">Lade Aktivitäten...</p>}
@@ -1275,6 +1378,9 @@ button {
 .activityHeader {
   padding: 16px 18px;
   border-bottom: 1px solid #e5eaf2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .activityHeader h3 {
@@ -1286,6 +1392,16 @@ button {
   margin: 4px 0 0;
   color: #64748b;
   font-size: 13px;
+}
+
+.markSeenBtn {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #dbe3ee;
+  background: #fff;
+  color: #334155;
+  padding: 0 10px;
+  cursor: pointer;
 }
 
 .activityList {
@@ -1342,6 +1458,105 @@ button {
 
 .activityError {
   color: #dc2626;
+}
+
+.settingsPanel {
+  padding: 30px;
+}
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.settingsGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.settingsGrid select {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #dbe3ee;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.checkboxSetting {
+  grid-column: 1 / -1;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+  font-weight: 500 !important;
+}
+
+.settingsActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.layout.theme-dark {
+  color: #e2e8f0;
+}
+
+.layout.theme-dark .main {
+  background: #0b1220;
+}
+
+.layout.theme-dark .top p,
+.layout.theme-dark .tableHead p,
+.layout.theme-dark .kpiText p,
+.layout.theme-dark .kpiText span,
+.layout.theme-dark .device p,
+.layout.theme-dark .activityHeader p,
+.layout.theme-dark .activityDetails,
+.layout.theme-dark .activityItem time,
+.layout.theme-dark .report p {
+  color: #94a3b8;
+}
+
+.layout.theme-dark .search,
+.layout.theme-dark .bell,
+.layout.theme-dark .headerLogoutBtn,
+.layout.theme-dark .card,
+.layout.theme-dark .tableBox,
+.layout.theme-dark .dashCard,
+.layout.theme-dark .modal,
+.layout.theme-dark .activityPanel,
+.layout.theme-dark .markSeenBtn,
+.layout.theme-dark .edit,
+.layout.theme-dark .delete,
+.layout.theme-dark .settingsGrid select,
+.layout.theme-dark .formGrid input,
+.layout.theme-dark .formGrid select {
+  background: #111827;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+.layout.theme-dark th {
+  background: #172036;
+  color: #cbd5e1;
+}
+
+.layout.theme-dark td {
+  border-bottom-color: #253247;
+}
+
+.layout.theme-dark .search input {
+  background: transparent;
+  color: #e2e8f0;
+}
+
+.layout.theme-dark .report code {
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
   .headerLogoutBtn {
@@ -1682,6 +1897,15 @@ td {
 
   .cards {
     grid-template-columns: 1fr;
+  }
+
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .settingsActions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .activityPanel {
