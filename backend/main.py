@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, validator
 from typing import Optional
@@ -86,7 +87,10 @@ app.state.limiter = limiter
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return HTTPException(status_code=429, detail="Zu viele Anfragen. Bitte später versuchen.")
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Zu viele Login-Versuche. Bitte kurz warten und erneut versuchen."}
+    )
 
 DEFAULT_CORS_ORIGINS = [
     "https://inventarfrontend-hsfubmgge0arhag8.germanywestcentral-01.azurewebsites.net",
@@ -160,7 +164,18 @@ def get_connection():
     
     # Recycle connection if too old
     current_time = time.time()
-    if _db_connection is None or (current_time - _db_connection_time) > DB_CONNECTION_TTL:
+    needs_reconnect = _db_connection is None or (current_time - _db_connection_time) > DB_CONNECTION_TTL
+
+    # Validate pooled connection before reusing it.
+    if not needs_reconnect and _db_connection is not None:
+        try:
+            health_cursor = _db_connection.cursor()
+            health_cursor.execute("SELECT 1")
+            health_cursor.close()
+        except pyodbc.Error:
+            needs_reconnect = True
+
+    if needs_reconnect:
         if _db_connection:
             try:
                 _db_connection.close()
@@ -277,7 +292,7 @@ def root():
 
 
 @app.post("/api/register")
-@limiter.limit("5/15 minutes")
+@limiter.limit("15/15 minutes")
 def register(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     validate_password_strength(credentials.password)
@@ -312,7 +327,7 @@ def register(request: Request, credentials: UserCredentials):
 
 
 @app.post("/api/login")
-@limiter.limit("5/15 minutes")
+@limiter.limit("15/15 minutes")
 def login(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     connection = get_connection()  # Uses connection pool now (fast!)
