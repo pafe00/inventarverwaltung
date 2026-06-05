@@ -22,7 +22,6 @@ export default function App() {
   const [activePage, setActivePage] = useState("Dashboard")
   const [statusFilter, setStatusFilter] = useState("alle")
   const emptyForm = {
-    id: "",
     name: "",
     kategorie: "Laptop",
     hersteller: "",
@@ -94,7 +93,6 @@ export default function App() {
     setEditingId(item.id)
     const standort = TEKO_STANDORTE.includes(item.standort) ? item.standort : ""
     setForm({
-      id: item.id,
       name: item.name || "",
       kategorie: item.kategorie || "",
       hersteller: item.hersteller || "",
@@ -114,7 +112,6 @@ export default function App() {
     e.preventDefault()
 
     const item = {
-      id: Number(form.id),
       name: form.name,
       kategorie: form.kategorie,
       hersteller: form.hersteller,
@@ -381,7 +378,6 @@ export default function App() {
               </div>
 
               <div className="formGrid">
-                <input name="id" type="number" placeholder="ID" value={form.id} onChange={handleChange} required disabled={!!editingId} />
                 <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
                 <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
                 <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />

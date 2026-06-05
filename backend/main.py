@@ -120,6 +120,8 @@ def startup_event():
         connection = get_connection()
         cursor = connection.cursor()
         ensure_users_table(cursor)
+        ensure_inventar_table(cursor)
+        ensure_inventar_id_sequence(cursor)
         connection.commit()
         cursor.close()
         connection.close()
@@ -177,10 +179,7 @@ def ensure_users_table(cursor):
     """)
 
 
-def init_database():
-    connection = get_connection()
-    cursor = connection.cursor()
-
+def ensure_inventar_table(cursor):
     cursor.execute("""
     IF NOT EXISTS (
         SELECT * FROM sysobjects
@@ -198,15 +197,43 @@ def init_database():
     )
     """)
 
-    connection.commit()
-    connection.close()
+
+def ensure_inventar_id_sequence(cursor):
+    """Maintain a monotonic sequence so inventar IDs are server-generated and not reused."""
+    cursor.execute("""
+    DECLARE @max_id BIGINT = ISNULL((SELECT MAX(id) FROM dbo.inventar), 0);
+
+    IF OBJECT_ID('dbo.inventar_id_seq', 'SO') IS NULL
+    BEGIN
+        DECLARE @start BIGINT = @max_id + 1;
+        DECLARE @create_sql NVARCHAR(300) =
+            N'CREATE SEQUENCE dbo.inventar_id_seq AS INT START WITH ' + CAST(@start AS NVARCHAR(30)) +
+            N' INCREMENT BY 1 MINVALUE 1 NO CYCLE';
+        EXEC(@create_sql);
+    END
+    ELSE
+    BEGIN
+        DECLARE @current BIGINT = (
+            SELECT CAST(COALESCE(current_value, start_value) AS BIGINT)
+            FROM sys.sequences
+            WHERE object_id = OBJECT_ID('dbo.inventar_id_seq')
+        );
+
+        IF @current <= @max_id
+        BEGIN
+            DECLARE @restart BIGINT = @max_id + 1;
+            DECLARE @alter_sql NVARCHAR(300) =
+                N'ALTER SEQUENCE dbo.inventar_id_seq RESTART WITH ' + CAST(@restart AS NVARCHAR(30));
+            EXEC(@alter_sql);
+        END
+    END
+    """)
 
 
 #init_database()
 
 
-class InventarItem(BaseModel):
-    id: int = Field(..., gt=0, le=2147483647)
+class InventarItemPayload(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     kategorie: str = Field(..., min_length=1, max_length=255)
     hersteller: Optional[str] = Field(None, max_length=255)
@@ -412,23 +439,12 @@ def get_item(request: Request, item_id: int, username: str = Depends(verify_toke
 
 @app.post("/api/inventar")
 @limiter.limit("10/15 minutes")
-def create_item(request: Request, item: InventarItem, _: str = Depends(verify_token)):
+def create_item(request: Request, item: InventarItemPayload, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
-    cursor.execute(
-        "SELECT id FROM inventar WHERE id = ?",
-        (item.id,)
-    )
-
-    existing = cursor.fetchone()
-
-    if existing:
-        connection.close()
-        raise HTTPException(
-            status_code=400,
-            detail="ID existiert bereits"
-        )
+    cursor.execute("SELECT NEXT VALUE FOR dbo.inventar_id_seq")
+    generated_id = int(cursor.fetchone()[0])
 
     cursor.execute("""
         INSERT INTO inventar (
@@ -444,7 +460,7 @@ def create_item(request: Request, item: InventarItem, _: str = Depends(verify_to
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
-            item.id,
+            generated_id,
             item.name,
             item.kategorie,
             item.hersteller,
@@ -458,15 +474,26 @@ def create_item(request: Request, item: InventarItem, _: str = Depends(verify_to
     connection.commit()
     connection.close()
 
+    created_item = {
+        "id": generated_id,
+        "name": item.name,
+        "kategorie": item.kategorie,
+        "hersteller": item.hersteller,
+        "seriennummer": item.seriennummer,
+        "standort": item.standort,
+        "status": item.status,
+        "bemerkung": item.bemerkung,
+    }
+
     return {
         "message": "Gerät wurde erfolgreich erstellt",
-        "item": item
+        "item": created_item
     }
 
 
 @app.put("/api/inventar/{item_id}")
 @limiter.limit("10/15 minutes")
-def update_item(request: Request, item_id: int, item: InventarItem, _: str = Depends(verify_token)):
+def update_item(request: Request, item_id: int, item: InventarItemPayload, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
