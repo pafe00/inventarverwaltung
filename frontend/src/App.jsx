@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import {
   Home, Monitor, MapPin, BarChart3, Settings, Bell, Search, Plus,
   Trash2, Pencil, CheckCircle, Clock3, AlertTriangle, Laptop,
-  Keyboard, Server, ChevronRight, LogOut
+  Keyboard, Server, ChevronRight, LogOut, Tablet, Smartphone, Headphones, Watch
 } from "lucide-react"
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import LoginPage from "./LoginPage"
@@ -492,7 +492,7 @@ export default function App() {
   }
 
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
+  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const gefiltert = inventar.filter((x) => {
@@ -687,11 +687,11 @@ export default function App() {
                 <Card
                   color="orange"
                   icon={<Clock3 />}
-                  title="Ausgeliehen"
-                  value={inventar.filter((x) => x.status === "ausgeliehen").length}
-                  text="Aktuell ausgeliehen"
-                  onClick={() => setStatusFilter("ausgeliehen")}
-                  active={statusFilter === "ausgeliehen"}
+                  title="Im Einsatz"
+                  value={inventar.filter((x) => x.status === "Im Einsatz").length}
+                  text="Aktuell Im Einsatz"
+                  onClick={() => setStatusFilter("Im Einsatz")}
+                  active={statusFilter === "Im Einsatz"}
                 />
 
                 <Card
@@ -853,7 +853,7 @@ export default function App() {
                   Standard-Status (Neues Gerät)
                   <select value={defaultInventarStatus} onChange={(e) => setDefaultInventarStatus(e.target.value)}>
                     <option value="verfügbar">verfügbar</option>
-                    <option value="ausgeliehen">ausgeliehen</option>
+                    <option value="Im Einsatz">Im Einsatz</option>
                     <option value="defekt">defekt</option>
                   </select>
                 </label>
@@ -997,7 +997,7 @@ export default function App() {
 
                 <select name="status" value={form.status} onChange={handleChange}>
                   <option value="verfügbar">verfügbar</option>
-                  <option value="ausgeliehen">ausgeliehen</option>
+                  <option value="Im Einsatz">Im Einsatz</option>
                   <option value="defekt">defekt</option>
                 </select>
 
@@ -1023,12 +1023,12 @@ export default function App() {
 
 function DashboardPage({ inventar, standorte }) {
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
+  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const statusData = [
     { name: "Verfügbar", value: verfuegbar, color: "#22c55e" },
-    { name: "Ausgeliehen", value: ausgeliehen, color: "#f59e0b" },
+    { name: "Im Einsatz", value: Im Einsatz, color: "#f59e0b" },
     { name: "Defekt", value: defekt, color: "#ef4444" },
   ]
 
@@ -1067,9 +1067,9 @@ function DashboardPage({ inventar, standorte }) {
             <Clock3 size={28} />
           </div>
           <div className="kpiText">
-            <span>Ausgeliehen</span>
-            <strong>{ausgeliehen}</strong>
-            <p>Aktuell ausgeliehen</p>
+            <span>Im Einsatz</span>
+            <strong>{Im Einsatz}</strong>
+            <p>Aktuell Im Einsatz</p>
           </div>
         </div>
 
@@ -1129,14 +1129,14 @@ function DashboardPage({ inventar, standorte }) {
 function ReportPage({ inventar, standorte }) {
   const gesamt = inventar.length
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
+  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
   const defektQuote = gesamt === 0 ? 0 : Math.round((defekt / gesamt) * 100)
 
   const standortStatusData = standorte.map((ort) => ({
     name: ort,
     verfügbar: inventar.filter((x) => x.standort === ort && x.status === "verfügbar").length,
-    ausgeliehen: inventar.filter((x) => x.standort === ort && x.status === "ausgeliehen").length,
+    Im Einsatz: inventar.filter((x) => x.standort === ort && x.status === "Im Einsatz").length,
     defekt: inventar.filter((x) => x.standort === ort && x.status === "defekt").length,
   }))
 
@@ -1185,7 +1185,7 @@ function ReportPage({ inventar, standorte }) {
           </div>
           <div className="kpiText">
             <span>Aktiv genutzt</span>
-            <strong>{ausgeliehen}</strong>
+            <strong>{Im Einsatz}</strong>
             <p>Geräte im Umlauf</p>
           </div>
         </div>
@@ -1213,7 +1213,7 @@ function ReportPage({ inventar, standorte }) {
               <Tooltip />
               <Legend />
               <Bar dataKey="verfügbar" stackId="a" fill="#22c55e" />
-              <Bar dataKey="ausgeliehen" stackId="a" fill="#f59e0b" />
+              <Bar dataKey="Im Einsatz" stackId="a" fill="#f59e0b" />
               <Bar dataKey="defekt" stackId="a" fill="#ef4444" />
             </BarChart>
           </ResponsiveContainer>
@@ -1374,15 +1374,21 @@ function Card({ icon, title, value, text, color, onClick, active }) {
 
 function getStatus(status) {
   if (status === "verfügbar") return "green"
-  if (status === "ausgeliehen") return "orange"
+  if (status === "Im Einsatz") return "orange"
   return "red"
 }
 
 function getIcon(kategorie = "") {
   const k = kategorie.toLowerCase()
+  if (k.includes("tablet")) return <Tablet size={20} />
+  if (k.includes("earbud") || k.includes("buds") || k.includes("kopfh")) return <Headphones size={20} />
+  if (k.includes("smartwatch") || k.includes("watch")) return <Watch size={20} />
+  if (k.includes("smartphone") || k.includes("phone")) return <Smartphone size={20} />
+  if (k.includes("desktop")) return <Monitor size={20} />
   if (k.includes("monitor")) return <Monitor size={20} />
   if (k.includes("zubehör")) return <Keyboard size={20} />
   if (k.includes("netzwerk")) return <Server size={20} />
+  if (k.includes("laptop")) return <Laptop size={20} />
   return <Laptop size={20} />
 }
 

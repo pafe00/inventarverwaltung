@@ -312,7 +312,7 @@ class InventarItemPayload(BaseModel):
     hersteller: Optional[str] = Field(None, max_length=255)
     seriennummer: Optional[str] = Field(None, max_length=255)
     standort: str = Field(..., min_length=1, max_length=255)
-    status: str = Field(..., pattern="^(verfügbar|ausgeliehen|defekt)$")
+    status: str = Field(..., pattern="^(verfügbar|Im Einsatz|defekt)$")
     bemerkung: Optional[str] = Field(None, max_length=500)
     
     @validator('name', 'kategorie', 'hersteller', 'seriennummer', 'standort', 'bemerkung', pre=True)
@@ -760,8 +760,8 @@ def get_dashboard():
     cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'verfügbar'")
     verfuegbar = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'ausgeliehen'")
-    ausgeliehen = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'Im Einsatz'")
+    Im Einsatz = cursor.fetchone()[0]
 
     cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'defekt'")
     defekt = cursor.fetchone()[0]
@@ -771,7 +771,7 @@ def get_dashboard():
     return {
         "gesamt": gesamt,
         "verfügbar": verfuegbar,
-        "ausgeliehen": ausgeliehen,
+        "Im Einsatz": Im Einsatz,
         "defekt": defekt
     }
 

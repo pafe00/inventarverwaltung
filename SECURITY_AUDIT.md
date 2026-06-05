@@ -55,7 +55,7 @@
 ✅ Name: 1-255 Zeichen
 ✅ Kategorie: 1-255 Zeichen
 ✅ Standort: 1-255 Zeichen
-✅ Status: Enum (verfügbar|ausgeliehen|defekt)
+✅ Status: Enum (verfügbar|Im Einsatz|defekt)
 ✅ Bemerkung: Max 500 Zeichen
 ✅ XSS-Check: <script> und javascript: blockiert
 ✅ SQL Injection: Parametrized Queries (pyodbc)
