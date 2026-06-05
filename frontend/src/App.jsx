@@ -347,13 +347,7 @@ export default function App() {
           )}
 
           {activePage === "Berichte" && (
-            <section className="tableBox report">
-              <h2>Berichte</h2>
-              <p>Gesamtgeräte: {inventar.length}</p>
-              <p>Verfügbar: {verfuegbar}</p>
-              <p>Ausgeliehen: {ausgeliehen}</p>
-              <p>Defekt: {defekt}</p>
-            </section>
+            <ReportPage inventar={inventar} standorte={TEKO_STANDORTE} />
           )}
 
           {activePage === "Einstellungen" && (
@@ -510,6 +504,153 @@ function DashboardPage({ inventar, standorte }) {
           </ResponsiveContainer>
         </div>
       </div>
+    </section>
+  )
+}
+
+function ReportPage({ inventar, standorte }) {
+  const gesamt = inventar.length
+  const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
+  const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
+  const defekt = inventar.filter((x) => x.status === "defekt").length
+  const defektQuote = gesamt === 0 ? 0 : Math.round((defekt / gesamt) * 100)
+
+  const standortStatusData = standorte.map((ort) => ({
+    name: ort,
+    verfügbar: inventar.filter((x) => x.standort === ort && x.status === "verfügbar").length,
+    ausgeliehen: inventar.filter((x) => x.standort === ort && x.status === "ausgeliehen").length,
+    defekt: inventar.filter((x) => x.standort === ort && x.status === "defekt").length,
+  }))
+
+  const kategorieMap = {}
+  inventar.forEach((item) => {
+    const key = item.kategorie || "Unbekannt"
+    kategorieMap[key] = (kategorieMap[key] || 0) + 1
+  })
+  const kategorieData = Object.entries(kategorieMap)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 7)
+
+  const defektListe = inventar
+    .filter((x) => x.status === "defekt")
+    .slice(0, 10)
+
+  return (
+    <section className="dashboard">
+      <div className="dashGrid">
+        <div className="dashCard kpi">
+          <div className="kpiIcon blue">
+            <Monitor size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Gesamtgeräte</span>
+            <strong>{gesamt}</strong>
+            <p>Basis für alle Auswertungen</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi">
+          <div className="kpiIcon green">
+            <CheckCircle size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Verfügbar-Quote</span>
+            <strong>{gesamt === 0 ? 0 : Math.round((verfuegbar / gesamt) * 100)}%</strong>
+            <p>{verfuegbar} von {gesamt} einsatzbereit</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi">
+          <div className="kpiIcon orange">
+            <Clock3 size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Aktiv genutzt</span>
+            <strong>{ausgeliehen}</strong>
+            <p>Geräte im Umlauf</p>
+          </div>
+        </div>
+
+        <div className="dashCard kpi alert">
+          <div className="kpiIcon red">
+            <AlertTriangle size={28} />
+          </div>
+          <div className="kpiText">
+            <span>Defektquote</span>
+            <strong>{defektQuote}%</strong>
+            <p>{defekt} Geräte mit Handlungsbedarf</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="chartsGrid">
+        <div className="dashCard chart">
+          <h3>Standorte nach Status</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={standortStatusData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="verfügbar" stackId="a" fill="#22c55e" />
+              <Bar dataKey="ausgeliehen" stackId="a" fill="#f59e0b" />
+              <Bar dataKey="defekt" stackId="a" fill="#ef4444" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="dashCard chart">
+          <h3>Top Kategorien</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={kategorieData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#2563eb" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <section className="tableBox" style={{ marginTop: 24 }}>
+        <div className="tableHead">
+          <div>
+            <h2>Defekte Geräte (Top 10)</h2>
+            <p>Priorisierte Liste für Reparatur und Austausch</p>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Gerät</th>
+              <th>Kategorie</th>
+              <th>Standort</th>
+              <th>Bemerkung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {defektListe.length === 0 ? (
+              <tr>
+                <td colSpan={5}>Keine defekten Geräte vorhanden.</td>
+              </tr>
+            ) : (
+              defektListe.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.id}</td>
+                  <td>{item.name}</td>
+                  <td>{item.kategorie}</td>
+                  <td>{item.standort}</td>
+                  <td>{item.bemerkung || "-"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
     </section>
   )
 }
