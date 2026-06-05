@@ -14,6 +14,30 @@ function isStrongPassword(value) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/.test(value)
 }
 
+function toErrorMessage(detail, fallback) {
+  if (!detail) return fallback
+  if (typeof detail === "string") return detail
+
+  // FastAPI validation errors often come as an array of objects.
+  if (Array.isArray(detail)) {
+    const first = detail[0]
+    if (typeof first === "string") return first
+    if (first && typeof first === "object") {
+      if (typeof first.msg === "string") return first.msg
+      if (Array.isArray(first.loc)) return `${first.loc.join(".")}: ungültiger Wert`
+    }
+    return fallback
+  }
+
+  if (typeof detail === "object") {
+    if (typeof detail.msg === "string") return detail.msg
+    if (typeof detail.message === "string") return detail.message
+    if (Array.isArray(detail.loc)) return `${detail.loc.join(".")}: ungültiger Wert`
+  }
+
+  return fallback
+}
+
 export default function LoginPage({ onLogin }) {
   const [mode, setMode] = useState("login")
   const [username, setUsername] = useState("")
@@ -67,7 +91,7 @@ export default function LoginPage({ onLogin }) {
       }
 
       if (!res.ok) {
-        setError(data.detail || `Serverfehler (${res.status})`)
+        setError(toErrorMessage(data?.detail, `Serverfehler (${res.status})`))
         return
       }
       if (mode === "register") {
