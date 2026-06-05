@@ -12,6 +12,50 @@ const API_URL =
 
 const TEKO_STANDORTE = ["Luzern", "Bern", "Basel", "Zürich", "Olten"]
 
+const DEVICE_CATALOG = {
+  Apple: {
+    Laptop: ["MacBook Air M1", "MacBook Air M2", "MacBook Air M3", "MacBook Pro 14\"", "MacBook Pro 16\""],
+    Smartphone: ["iPhone 12", "iPhone 13", "iPhone 14", "iPhone 15"],
+    Tablet: ["iPad 10. Gen", "iPad Air", "iPad Pro 11\"", "iPad Pro 12.9\""],
+    Earbuds: ["AirPods 2", "AirPods 3", "AirPods Pro", "AirPods Max"],
+    Smartwatch: ["Apple Watch SE", "Apple Watch Series 9"],
+  },
+  Dell: {
+    Laptop: ["Latitude 5440", "Latitude 5540", "XPS 13", "XPS 15"],
+    Desktop: ["OptiPlex 7010", "OptiPlex 7020"],
+    Monitor: ["P2422H", "P2723D", "U2723QE"],
+  },
+  HP: {
+    Laptop: ["EliteBook 840 G10", "ProBook 450 G10", "ZBook Power G10"],
+    Desktop: ["ProDesk 400 G9", "EliteDesk 800 G9"],
+    Monitor: ["E24 G5", "E27 G5", "Z24f G3"],
+  },
+  Lenovo: {
+    Laptop: ["ThinkPad E14", "ThinkPad T14", "ThinkPad X1 Carbon"],
+    Desktop: ["ThinkCentre M70s", "ThinkCentre M90t"],
+    Monitor: ["ThinkVision T24i", "ThinkVision T27h"],
+    Tablet: ["Tab P11", "Tab P12"],
+  },
+  Samsung: {
+    Smartphone: ["Galaxy S21", "Galaxy S22", "Galaxy S23", "Galaxy S24"],
+    Tablet: ["Galaxy Tab S8", "Galaxy Tab S9"],
+    Earbuds: ["Galaxy Buds2", "Galaxy Buds2 Pro"],
+    Monitor: ["ViewFinity S6", "Odyssey G5"],
+  },
+  Google: {
+    Smartphone: ["Pixel 7", "Pixel 8", "Pixel 8a"],
+    Tablet: ["Pixel Tablet"],
+    Earbuds: ["Pixel Buds A-Series", "Pixel Buds Pro"],
+  },
+  Microsoft: {
+    Laptop: ["Surface Laptop 5", "Surface Laptop 6"],
+    Tablet: ["Surface Pro 9", "Surface Pro 10"],
+    Desktop: ["Surface Studio 2+"],
+  },
+}
+
+const HERSTELLER_OPTIONEN = Object.keys(DEVICE_CATALOG)
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")
   const [username, setUsername] = useState(() => localStorage.getItem("username") || "")
@@ -23,7 +67,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState("alle")
   const emptyForm = {
     name: "",
-    kategorie: "Laptop",
+    kategorie: "",
     hersteller: "",
     seriennummer: "",
     standort: "",
@@ -92,10 +136,15 @@ export default function App() {
   function openEditForm(item) {
     setEditingId(item.id)
     const standort = TEKO_STANDORTE.includes(item.standort) ? item.standort : ""
+    const hersteller = HERSTELLER_OPTIONEN.includes(item.hersteller) ? item.hersteller : ""
+    const kategorieOptionen = hersteller ? Object.keys(DEVICE_CATALOG[hersteller]) : []
+    const kategorie = kategorieOptionen.includes(item.kategorie) ? item.kategorie : ""
+    const modellOptionen = hersteller && kategorie ? DEVICE_CATALOG[hersteller][kategorie] : []
+    const modell = modellOptionen.includes(item.name) ? item.name : ""
     setForm({
-      name: item.name || "",
-      kategorie: item.kategorie || "",
-      hersteller: item.hersteller || "",
+      name: modell,
+      kategorie,
+      hersteller,
       seriennummer: item.seriennummer || "",
       standort,
       status: item.status || "verfügbar",
@@ -105,7 +154,19 @@ export default function App() {
   }
 
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+
+    if (name === "hersteller") {
+      setForm({ ...form, hersteller: value, kategorie: "", name: "" })
+      return
+    }
+
+    if (name === "kategorie") {
+      setForm({ ...form, kategorie: value, name: "" })
+      return
+    }
+
+    setForm({ ...form, [name]: value })
   }
 
   async function handleSubmit(e) {
@@ -171,10 +232,22 @@ export default function App() {
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const gefiltert = inventar.filter((x) => {
+    const haystack = [
+      x.id,
+      x.name,
+      x.kategorie,
+      x.hersteller,
+      x.seriennummer,
+      x.standort,
+      x.status,
+      x.bemerkung,
+    ]
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase()
+
     const matchesSearch =
-      `${x.name} ${x.kategorie} ${x.hersteller} ${x.standort}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
+      haystack.includes(search.trim().toLowerCase())
 
     const matchesStatus =
       statusFilter === "alle" ? true : x.status === statusFilter
@@ -186,6 +259,11 @@ export default function App() {
     const anzahl = inventar.filter((item) => item.standort === ort).length
     return [ort, anzahl]
   })
+
+  const kategorieOptionen = form.hersteller ? Object.keys(DEVICE_CATALOG[form.hersteller]) : []
+  const modellOptionen = form.hersteller && form.kategorie
+    ? DEVICE_CATALOG[form.hersteller][form.kategorie]
+    : []
 
   return (
     <>
@@ -238,14 +316,16 @@ export default function App() {
             </div>
 
             <div className="topRight">
-              <div className="search">
-                <Search size={22} />
-                <input
-                  placeholder="Gerät suchen..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
+              {activePage === "Inventar" && (
+                <div className="search">
+                  <Search size={22} />
+                  <input
+                    placeholder="Modell, SN, Hersteller suchen..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              )}
 
               <button className="bell">
                 <Bell size={22} />
@@ -372,9 +452,27 @@ export default function App() {
               </div>
 
               <div className="formGrid">
-                <input name="name" placeholder="Gerätename" value={form.name} onChange={handleChange} required />
-                <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
-                <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
+                <select name="hersteller" value={form.hersteller} onChange={handleChange} required>
+                  <option value="" disabled>Hersteller wählen</option>
+                  {HERSTELLER_OPTIONEN.map((hersteller) => (
+                    <option key={hersteller} value={hersteller}>{hersteller}</option>
+                  ))}
+                </select>
+
+                <select name="kategorie" value={form.kategorie} onChange={handleChange} required disabled={!form.hersteller}>
+                  <option value="" disabled>Kategorie wählen</option>
+                  {kategorieOptionen.map((kategorie) => (
+                    <option key={kategorie} value={kategorie}>{kategorie}</option>
+                  ))}
+                </select>
+
+                <select name="name" value={form.name} onChange={handleChange} required disabled={!form.kategorie}>
+                  <option value="" disabled>Modell wählen</option>
+                  {modellOptionen.map((modell) => (
+                    <option key={modell} value={modell}>{modell}</option>
+                  ))}
+                </select>
+
                 <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
                 <select name="standort" value={form.standort} onChange={handleChange} required>
                   <option value="" disabled>Standort wählen</option>
@@ -674,7 +772,7 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Gerät</th>
+              <th>Modell</th>
             <th>Kategorie</th>
             <th>Hersteller</th>
             <th>Standort</th>
@@ -698,7 +796,7 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
                 </div>
               </td>
 
-              <td>{item.kategorie}</td>
+                <th>Modell</th>
               <td>{item.hersteller}</td>
               <td>{item.standort}</td>
               <td>
