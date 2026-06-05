@@ -55,6 +55,33 @@ const DEVICE_CATALOG = {
 }
 
 const HERSTELLER_OPTIONEN = Object.keys(DEVICE_CATALOG)
+const INVENTAR_COLUMN_LABELS = {
+  id: "ID",
+  modell: "Modell",
+  kategorie: "Kategorie",
+  hersteller: "Hersteller",
+  standort: "Standort",
+  status: "Status",
+}
+const DEFAULT_VISIBLE_COLUMNS = {
+  id: true,
+  modell: true,
+  kategorie: true,
+  hersteller: true,
+  standort: true,
+  status: true,
+}
+
+function loadJsonSetting(key, fallbackValue) {
+  try {
+    const rawValue = localStorage.getItem(key)
+    if (!rawValue) return fallbackValue
+    const parsedValue = JSON.parse(rawValue)
+    return parsedValue && typeof parsedValue === "object" ? { ...fallbackValue, ...parsedValue } : fallbackValue
+  } catch {
+    return fallbackValue
+  }
+}
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")
@@ -75,6 +102,12 @@ export default function App() {
       : false
   )
   const [activePage, setActivePage] = useState(() => localStorage.getItem("default_page") || "Dashboard")
+  const [visibleColumns, setVisibleColumns] = useState(() => loadJsonSetting("inventar_visible_columns", DEFAULT_VISIBLE_COLUMNS))
+  const [compactMode, setCompactMode] = useState(() => (localStorage.getItem("inventar_compact_mode") ?? "false") === "true")
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem("inventar_sort_by") || "id")
+  const [sortDirection, setSortDirection] = useState(() => localStorage.getItem("inventar_sort_direction") || "asc")
+  const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem("inventar_page_size") || "25"))
+  const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState("alle")
   const emptyForm = {
     name: "",
@@ -143,8 +176,32 @@ export default function App() {
   }, [markSeenOnOpen])
 
   useEffect(() => {
+    localStorage.setItem("inventar_visible_columns", JSON.stringify(visibleColumns))
+  }, [visibleColumns])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_compact_mode", String(compactMode))
+  }, [compactMode])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_sort_by", sortBy)
+  }, [sortBy])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_sort_direction", sortDirection)
+  }, [sortDirection])
+
+  useEffect(() => {
+    localStorage.setItem("inventar_page_size", String(pageSize))
+  }, [pageSize])
+
+  useEffect(() => {
     document.body.style.background = resolvedTheme === "dark" ? "#0b1220" : "#f4f7fb"
   }, [resolvedTheme])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, statusFilter, sortBy, sortDirection, pageSize])
 
   useEffect(() => {
     if (!username) return
@@ -241,6 +298,16 @@ export default function App() {
     const seenAt = new Date().toISOString()
     localStorage.setItem(activitySeenKey, seenAt)
     setLastSeenAt(seenAt)
+  }
+
+  function toggleColumnVisibility(columnKey) {
+    setVisibleColumns((current) => {
+      const currentlyEnabled = Object.values(current).filter(Boolean).length
+      if (current[columnKey] && currentlyEnabled <= 1) {
+        return current
+      }
+      return { ...current, [columnKey]: !current[columnKey] }
+    })
   }
 
   function openAddForm() {
@@ -396,6 +463,36 @@ export default function App() {
     isActivityUnread(entry.created_at, lastSeenAt)
   ).length
 
+  const sortedInventar = [...gefiltert].sort((left, right) => {
+    const normalizeForSort = (item) => {
+      if (sortBy === "id") return Number(item.id || 0)
+      if (sortBy === "modell") return String(item.name || "").toLowerCase()
+      if (sortBy === "kategorie") return String(item.kategorie || "").toLowerCase()
+      if (sortBy === "hersteller") return String(item.hersteller || "").toLowerCase()
+      if (sortBy === "standort") return String(item.standort || "").toLowerCase()
+      if (sortBy === "status") return String(item.status || "").toLowerCase()
+      return String(item.name || "").toLowerCase()
+    }
+
+    const leftValue = normalizeForSort(left)
+    const rightValue = normalizeForSort(right)
+
+    if (leftValue < rightValue) return sortDirection === "asc" ? -1 : 1
+    if (leftValue > rightValue) return sortDirection === "asc" ? 1 : -1
+    return 0
+  })
+
+  const totalPages = Math.max(1, Math.ceil(sortedInventar.length / pageSize))
+  const currentPageSafe = Math.min(currentPage, totalPages)
+  const pageStart = (currentPageSafe - 1) * pageSize
+  const pagedInventar = sortedInventar.slice(pageStart, pageStart + pageSize)
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   return (
     <>
       <style>{css}</style>
@@ -540,11 +637,40 @@ export default function App() {
               </section>
 
               <InventarTabelle
-                daten={gefiltert}
+                daten={pagedInventar}
+                visibleColumns={visibleColumns}
+                compactMode={compactMode}
                 openAddForm={openAddForm}
                 openEditForm={openEditForm}
                 loeschen={loeschen}
               />
+
+              <div className="tablePagination">
+                <p>
+                  {sortedInventar.length === 0
+                    ? "Keine Treffer"
+                    : `${pageStart + 1}-${Math.min(pageStart + pageSize, sortedInventar.length)} von ${sortedInventar.length}`}
+                </p>
+                <div className="tablePaginationControls">
+                  <button
+                    type="button"
+                    className="edit"
+                    disabled={currentPageSafe <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Zurück
+                  </button>
+                  <span>Seite {currentPageSafe} / {totalPages}</span>
+                  <button
+                    type="button"
+                    className="edit"
+                    disabled={currentPageSafe >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  >
+                    Weiter
+                  </button>
+                </div>
+              </div>
             </>
           )}
 
@@ -614,6 +740,45 @@ export default function App() {
                   </select>
                 </label>
 
+                <label>
+                  Inventar sortieren nach
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                    <option value="id">ID</option>
+                    <option value="modell">Modell</option>
+                    <option value="kategorie">Kategorie</option>
+                    <option value="hersteller">Hersteller</option>
+                    <option value="standort">Standort</option>
+                    <option value="status">Status</option>
+                  </select>
+                </label>
+
+                <label>
+                  Sortierrichtung
+                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value)}>
+                    <option value="asc">Aufsteigend</option>
+                    <option value="desc">Absteigend</option>
+                  </select>
+                </label>
+
+                <label>
+                  Einträge pro Seite
+                  <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value))}>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </label>
+
+                <label className="checkboxSetting">
+                  <input
+                    type="checkbox"
+                    checked={compactMode}
+                    onChange={(e) => setCompactMode(e.target.checked)}
+                  />
+                  Kompaktmodus für Tabellen aktivieren
+                </label>
+
                 <label className="checkboxSetting">
                   <input
                     type="checkbox"
@@ -622,6 +787,22 @@ export default function App() {
                   />
                   Ungelesene Einträge beim Öffnen automatisch als gelesen markieren
                 </label>
+
+                <div className="columnSettings">
+                  <p>Inventar-Spalten</p>
+                  <div className="columnSettingsGrid">
+                    {Object.entries(INVENTAR_COLUMN_LABELS).map(([columnKey, label]) => (
+                      <label key={columnKey} className="columnCheckbox">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(visibleColumns[columnKey])}
+                          onChange={() => toggleColumnVisibility(columnKey)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="settingsActions">
@@ -953,9 +1134,9 @@ function ReportPage({ inventar, standorte }) {
   )
 }
 
-function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
+function InventarTabelle({ daten, visibleColumns, compactMode, openAddForm, openEditForm, loeschen }) {
   return (
-    <section className="tableBox">
+    <section className={compactMode ? "tableBox compactTable" : "tableBox"}>
       <div className="tableHead">
         <div>
           <h2>Inventarliste</h2>
@@ -971,12 +1152,12 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
       <table>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Modell</th>
-            <th>Kategorie</th>
-            <th>Hersteller</th>
-            <th>Standort</th>
-            <th>Status</th>
+            {visibleColumns.id && <th>ID</th>}
+            {visibleColumns.modell && <th>Modell</th>}
+            {visibleColumns.kategorie && <th>Kategorie</th>}
+            {visibleColumns.hersteller && <th>Hersteller</th>}
+            {visibleColumns.standort && <th>Standort</th>}
+            {visibleColumns.status && <th>Status</th>}
             <th>Aktion</th>
           </tr>
         </thead>
@@ -984,26 +1165,30 @@ function InventarTabelle({ daten, openAddForm, openEditForm, loeschen }) {
         <tbody>
           {daten.map((item) => (
             <tr key={item.id}>
-              <td>{item.id}</td>
+              {visibleColumns.id && <td>{item.id}</td>}
 
-              <td>
-                <div className="device">
-                  <div className="deviceIcon">{getIcon(item.kategorie)}</div>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <p>SN: {item.seriennummer || "-"}</p>
+              {visibleColumns.modell && (
+                <td>
+                  <div className="device">
+                    <div className="deviceIcon">{getIcon(item.kategorie)}</div>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <p>SN: {item.seriennummer || "-"}</p>
+                    </div>
                   </div>
-                </div>
-              </td>
+                </td>
+              )}
 
-              <td>{item.kategorie}</td>
-              <td>{item.hersteller}</td>
-              <td>{item.standort}</td>
-              <td>
-                <span className={`status ${getStatus(item.status)}`}>
-                  {item.status}
-                </span>
-              </td>
+              {visibleColumns.kategorie && <td>{item.kategorie}</td>}
+              {visibleColumns.hersteller && <td>{item.hersteller}</td>}
+              {visibleColumns.standort && <td>{item.standort}</td>}
+              {visibleColumns.status && (
+                <td>
+                  <span className={`status ${getStatus(item.status)}`}>
+                    {item.status}
+                  </span>
+                </td>
+              )}
               <td>
                 <div className="actions">
                   <button className="edit" onClick={() => openEditForm(item)}>
@@ -1501,6 +1686,79 @@ button {
   margin-top: 20px;
 }
 
+.columnSettings {
+  grid-column: 1 / -1;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.columnSettings p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.columnSettingsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.columnCheckbox {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  font-weight: 500 !important;
+}
+
+.tablePagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 4px 0;
+  color: #475569;
+}
+
+.tablePagination p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tablePaginationControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tablePaginationControls span {
+  font-size: 14px;
+  color: #334155;
+}
+
+.tablePagination .edit {
+  width: auto;
+  height: 34px;
+  padding: 0 10px;
+}
+
+.compactTable th,
+.compactTable td {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.compactTable .device {
+  gap: 12px;
+}
+
+.compactTable .deviceIcon {
+  width: 40px;
+  height: 40px;
+}
+
 .layout.theme-dark {
   color: #e2e8f0;
 }
@@ -1557,6 +1815,16 @@ button {
 .layout.theme-dark .report code {
   background: #0f172a;
   color: #e2e8f0;
+}
+
+.layout.theme-dark .columnSettings {
+  border-color: #334155;
+}
+
+.layout.theme-dark .columnSettings p,
+.layout.theme-dark .tablePagination,
+.layout.theme-dark .tablePaginationControls span {
+  color: #cbd5e1;
 }
 
   .headerLogoutBtn {
@@ -1903,9 +2171,19 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .columnSettingsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .settingsActions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .tablePagination {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .activityPanel {
