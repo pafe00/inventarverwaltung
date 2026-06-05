@@ -122,6 +122,7 @@ def startup_event():
         ensure_users_table(cursor)
         connection.commit()
         cursor.close()
+        connection.close()
         logger.info("Database initialization completed on startup")
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
@@ -147,51 +148,17 @@ CONNECTION_STRING = (
     f"Connection Timeout=10;"  # Reduced from 30 to 10 seconds
 )
 
-# Global connection pool (simple cache-like mechanism)
-_db_connection = None
-_db_connection_time = 0
-DB_CONNECTION_TTL = 3600  # Recycle connection every hour
-
-
 def get_connection():
-    """Get a database connection with simple pooling"""
-    global _db_connection, _db_connection_time
-    import time
-    
+    """Get a fresh DB connection per request to avoid stale shared-connection issues."""
     if not DB_PASSWORD:
         logger.error("DB_PASSWORD nicht gesetzt")
         raise HTTPException(status_code=500, detail="Serverfehler")
-    
-    # Recycle connection if too old
-    current_time = time.time()
-    needs_reconnect = _db_connection is None or (current_time - _db_connection_time) > DB_CONNECTION_TTL
 
-    # Validate pooled connection before reusing it.
-    if not needs_reconnect and _db_connection is not None:
-        try:
-            health_cursor = _db_connection.cursor()
-            health_cursor.execute("SELECT 1")
-            health_cursor.close()
-        except pyodbc.Error:
-            needs_reconnect = True
-
-    if needs_reconnect:
-        if _db_connection:
-            try:
-                _db_connection.close()
-            except:
-                pass
-        
-        try:
-            _db_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
-            _db_connection_time = current_time
-            logger.info("New DB connection established")
-        except pyodbc.Error as exc:
-            _db_connection = None
-            logger.error(f"DB Connection Error: {exc}")
-            raise HTTPException(status_code=503, detail="Datenbankverbindung nicht möglich")
-    
-    return _db_connection
+    try:
+        return pyodbc.connect(CONNECTION_STRING, autocommit=False)
+    except pyodbc.Error as exc:
+        logger.error(f"DB Connection Error: {exc}")
+        raise HTTPException(status_code=503, detail="Datenbankverbindung nicht möglich")
 
 
 def ensure_users_table(cursor):
@@ -324,6 +291,10 @@ def register(request: Request, credentials: UserCredentials):
             cursor.close()
         except:
             pass
+        try:
+            connection.close()
+        except:
+            pass
 
 
 @app.post("/api/login")
@@ -350,6 +321,10 @@ def login(request: Request, credentials: UserCredentials):
     finally:
         try:
             cursor.close()
+        except:
+            pass
+        try:
+            connection.close()
         except:
             pass
 
