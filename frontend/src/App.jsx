@@ -562,12 +562,6 @@ export default function App() {
   const pageStart = (currentPageSafe - 1) * pageSize
   const pagedInventar = sortedInventar.slice(pageStart, pageStart + pageSize)
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
   return (
     <>
       <style>{css}</style>
