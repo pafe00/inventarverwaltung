@@ -166,6 +166,12 @@ export default function App() {
       return
     }
 
+    if (name === "seriennummer") {
+      const normalizedSerial = value.toUpperCase().replace(/\s+/g, "")
+      setForm({ ...form, seriennummer: normalizedSerial })
+      return
+    }
+
     setForm({ ...form, [name]: value })
   }
 
@@ -473,7 +479,14 @@ export default function App() {
                   ))}
                 </select>
 
-                <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
+                <input
+                  name="seriennummer"
+                  placeholder="Seriennummer (optional)"
+                  value={form.seriennummer}
+                  onChange={handleChange}
+                  pattern="[A-Za-z0-9][A-Za-z0-9\-_/\.]{5,39}"
+                  title="Optional: 6-40 Zeichen, erlaubt A-Z 0-9 sowie - _ . /"
+                />
                 <select name="standort" value={form.standort} onChange={handleChange} required>
                   <option value="" disabled>Standort wählen</option>
                   {TEKO_STANDORTE.map((ort) => (

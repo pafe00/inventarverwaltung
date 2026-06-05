@@ -74,6 +74,32 @@ def validate_password_strength(value: str) -> None:
             detail="Passwort muss mindestens 8 Zeichen haben sowie Gross-/Kleinbuchstaben und 1 Sonderzeichen enthalten"
         )
 
+
+def normalize_serial(value: Optional[str]) -> Optional[str]:
+    """Normalize and validate serial numbers.
+
+    Convention:
+    - optional field
+    - uppercase
+    - whitespace removed
+    - allowed: A-Z, 0-9, -, _, ., /
+    - length: 6..40 chars
+    """
+    if value is None:
+        return None
+
+    raw = value.strip()
+    if raw == "":
+        return None
+
+    normalized = re.sub(r"\s+", "", raw).upper()
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9\-_/\.]{5,39}", normalized):
+        raise HTTPException(
+            status_code=400,
+            detail="Seriennummer ist ungültig (erlaubt: A-Z, 0-9, -, _, ., /; Länge 6-40)"
+        )
+    return normalized
+
 app = FastAPI(
     title="Inventarverwaltung API",
     description="Backend für cloudbasierte Inventarverwaltung",
@@ -254,6 +280,15 @@ class InventarItemPayload(BaseModel):
             if '<script' in v.lower() or 'javascript:' in v.lower():
                 raise ValueError("Ungültiges Zeichen in Input")
         return v
+
+    @validator('seriennummer')
+    def validate_seriennummer(cls, v):
+        if v is None or v == "":
+            return None
+        normalized = re.sub(r"\s+", "", v).upper()
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9\-_/\.]{5,39}", normalized):
+            raise ValueError("Seriennummer ungültig (A-Z, 0-9, -, _, ., /; 6-40 Zeichen)")
+        return normalized
 
 
 class UserCredentials(BaseModel):
@@ -442,6 +477,13 @@ def get_item(request: Request, item_id: int, username: str = Depends(verify_toke
 def create_item(request: Request, item: InventarItemPayload, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
+    serial = normalize_serial(item.seriennummer)
+
+    if serial:
+        cursor.execute("SELECT id FROM inventar WHERE seriennummer = ?", (serial,))
+        if cursor.fetchone():
+            connection.close()
+            raise HTTPException(status_code=409, detail="Seriennummer existiert bereits")
 
     cursor.execute("SELECT NEXT VALUE FOR dbo.inventar_id_seq")
     generated_id = int(cursor.fetchone()[0])
@@ -464,7 +506,7 @@ def create_item(request: Request, item: InventarItemPayload, _: str = Depends(ve
             item.name,
             item.kategorie,
             item.hersteller,
-            item.seriennummer,
+            serial,
             item.standort,
             item.status,
             item.bemerkung
@@ -479,7 +521,7 @@ def create_item(request: Request, item: InventarItemPayload, _: str = Depends(ve
         "name": item.name,
         "kategorie": item.kategorie,
         "hersteller": item.hersteller,
-        "seriennummer": item.seriennummer,
+        "seriennummer": serial,
         "standort": item.standort,
         "status": item.status,
         "bemerkung": item.bemerkung,
@@ -496,6 +538,13 @@ def create_item(request: Request, item: InventarItemPayload, _: str = Depends(ve
 def update_item(request: Request, item_id: int, item: InventarItemPayload, _: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
+    serial = normalize_serial(item.seriennummer)
+
+    if serial:
+        cursor.execute("SELECT id FROM inventar WHERE seriennummer = ? AND id <> ?", (serial, item_id))
+        if cursor.fetchone():
+            connection.close()
+            raise HTTPException(status_code=409, detail="Seriennummer existiert bereits")
 
     cursor.execute("""
         UPDATE inventar
@@ -513,7 +562,7 @@ def update_item(request: Request, item_id: int, item: InventarItemPayload, _: st
             item.name,
             item.kategorie,
             item.hersteller,
-            item.seriennummer,
+            serial,
             item.standort,
             item.status,
             item.bemerkung,
