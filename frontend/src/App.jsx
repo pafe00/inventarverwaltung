@@ -492,7 +492,7 @@ export default function App() {
   }
 
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
+  const imEinsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const gefiltert = inventar.filter((x) => {
@@ -1023,12 +1023,12 @@ export default function App() {
 
 function DashboardPage({ inventar, standorte }) {
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
+  const imEinsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
 
   const statusData = [
     { name: "Verfügbar", value: verfuegbar, color: "#22c55e" },
-    { name: "Im Einsatz", value: Im Einsatz, color: "#f59e0b" },
+    { name: "Im Einsatz", value: imEinsatz, color: "#f59e0b" },
     { name: "Defekt", value: defekt, color: "#ef4444" },
   ]
 
@@ -1068,7 +1068,7 @@ function DashboardPage({ inventar, standorte }) {
           </div>
           <div className="kpiText">
             <span>Im Einsatz</span>
-            <strong>{Im Einsatz}</strong>
+            <strong>{imEinsatz}</strong>
             <p>Aktuell Im Einsatz</p>
           </div>
         </div>
@@ -1129,14 +1129,14 @@ function DashboardPage({ inventar, standorte }) {
 function ReportPage({ inventar, standorte }) {
   const gesamt = inventar.length
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
-  const Im Einsatz = inventar.filter((x) => x.status === "Im Einsatz").length
+  const imEinsatz = inventar.filter((x) => x.status === "Im Einsatz").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
   const defektQuote = gesamt === 0 ? 0 : Math.round((defekt / gesamt) * 100)
 
   const standortStatusData = standorte.map((ort) => ({
     name: ort,
     verfügbar: inventar.filter((x) => x.standort === ort && x.status === "verfügbar").length,
-    Im Einsatz: inventar.filter((x) => x.standort === ort && x.status === "Im Einsatz").length,
+    "Im Einsatz": inventar.filter((x) => x.standort === ort && x.status === "Im Einsatz").length,
     defekt: inventar.filter((x) => x.standort === ort && x.status === "defekt").length,
   }))
 
@@ -1185,7 +1185,7 @@ function ReportPage({ inventar, standorte }) {
           </div>
           <div className="kpiText">
             <span>Aktiv genutzt</span>
-            <strong>{Im Einsatz}</strong>
+            <strong>{imEinsatz}</strong>
             <p>Geräte im Umlauf</p>
           </div>
         </div>
