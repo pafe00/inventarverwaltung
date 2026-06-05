@@ -10,6 +10,8 @@ import LoginPage from "./LoginPage"
 const API_URL =
   (import.meta.env.VITE_API_URL || "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net").replace(/\/$/, "")
 
+const TEKO_STANDORTE = ["Luzern", "Bern", "Basel", "Zürich", "Olten"]
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")
   const [username, setUsername] = useState(() => localStorage.getItem("username") || "")
@@ -90,13 +92,14 @@ export default function App() {
 
   function openEditForm(item) {
     setEditingId(item.id)
+    const standort = TEKO_STANDORTE.includes(item.standort) ? item.standort : ""
     setForm({
       id: item.id,
       name: item.name || "",
       kategorie: item.kategorie || "",
       hersteller: item.hersteller || "",
       seriennummer: item.seriennummer || "",
-      standort: item.standort || "",
+      standort,
       status: item.status || "verfügbar",
       bemerkung: item.bemerkung || "",
     })
@@ -182,12 +185,10 @@ export default function App() {
     return matchesSearch && matchesStatus
   })
 
-  const gruppiert = {}
-  inventar.forEach((item) => {
-    const ort = item.standort || "Unbekannt"
-    gruppiert[ort] = (gruppiert[ort] || 0) + 1
+  const standorte = TEKO_STANDORTE.map((ort) => {
+    const anzahl = inventar.filter((item) => item.standort === ort).length
+    return [ort, anzahl]
   })
-  const standorte = Object.entries(gruppiert)
 
   return (
     <>
@@ -264,7 +265,7 @@ export default function App() {
           </header>
 
           {activePage === "Dashboard" && (
-            <DashboardPage inventar={inventar} />
+            <DashboardPage inventar={inventar} standorte={TEKO_STANDORTE} />
           )}
 
           {activePage === "Inventar" && (
@@ -385,7 +386,12 @@ export default function App() {
                 <input name="kategorie" placeholder="Kategorie" value={form.kategorie} onChange={handleChange} required />
                 <input name="hersteller" placeholder="Hersteller" value={form.hersteller} onChange={handleChange} />
                 <input name="seriennummer" placeholder="Seriennummer" value={form.seriennummer} onChange={handleChange} />
-                <input name="standort" placeholder="Standort" value={form.standort} onChange={handleChange} required />
+                <select name="standort" value={form.standort} onChange={handleChange} required>
+                  <option value="" disabled>Standort wählen</option>
+                  {TEKO_STANDORTE.map((ort) => (
+                    <option key={ort} value={ort}>{ort}</option>
+                  ))}
+                </select>
 
                 <select name="status" value={form.status} onChange={handleChange}>
                   <option value="verfügbar">verfügbar</option>
@@ -407,7 +413,7 @@ export default function App() {
   )
 }
 
-function DashboardPage({ inventar }) {
+function DashboardPage({ inventar, standorte }) {
   const verfuegbar = inventar.filter((x) => x.status === "verfügbar").length
   const ausgeliehen = inventar.filter((x) => x.status === "ausgeliehen").length
   const defekt = inventar.filter((x) => x.status === "defekt").length
@@ -418,14 +424,9 @@ function DashboardPage({ inventar }) {
     { name: "Defekt", value: defekt, color: "#ef4444" },
   ]
 
-  const gruppiert = {}
-  inventar.forEach((item) => {
-    const ort = item.standort || "Unbekannt"
-    gruppiert[ort] = (gruppiert[ort] || 0) + 1
-  })
-  const standortData = Object.entries(gruppiert).map(([ort, count]) => ({
+  const standortData = standorte.map((ort) => ({
     name: ort,
-    count,
+    count: inventar.filter((item) => item.standort === ort).length,
   }))
 
   return (
