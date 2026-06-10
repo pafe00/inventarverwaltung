@@ -469,7 +469,16 @@ export default function App() {
     }
 
     if (!res.ok) {
-      alert("Speichern fehlgeschlagen. Prüfe, ob dein Backend PUT unterstützt.")
+      let reason = `HTTP ${res.status}`
+      try {
+        const payload = await res.json()
+        if (payload?.detail) {
+          reason = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail)
+        }
+      } catch {
+        // Response is not JSON; keep status as fallback
+      }
+      alert(`Speichern fehlgeschlagen: ${reason}`)
       return
     }
 
