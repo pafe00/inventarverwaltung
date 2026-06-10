@@ -15,6 +15,7 @@ import pyodbc
 import os
 import re
 import logging
+import time
 from allowed_users import ALLOWED_USER_EMAILS
 
 # --- Logging ---
@@ -34,6 +35,10 @@ JWT_EXPIRE_HOURS = 8
 MAX_PASSWORD_LENGTH = 128
 MAX_EMAIL_LENGTH = 255
 MAX_REQUEST_SIZE = 1024 * 100  # 100KB
+AUTH_CACHE_TTL_SECONDS = int(os.getenv("AUTH_CACHE_TTL_SECONDS", "300"))
+
+auth_password_cache = {}
+auth_password_cache_loaded_at = 0.0
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
@@ -82,6 +87,61 @@ def validate_password_strength(value: str) -> None:
             status_code=400,
             detail="Passwort muss mindestens 8 Zeichen haben sowie Gross-/Kleinbuchstaben und 1 Sonderzeichen enthalten"
         )
+
+
+def refresh_auth_password_cache(force: bool = False) -> None:
+    global auth_password_cache
+    global auth_password_cache_loaded_at
+
+    now = time.monotonic()
+    cache_is_fresh = (
+        auth_password_cache
+        and (now - auth_password_cache_loaded_at) < AUTH_CACHE_TTL_SECONDS
+    )
+    if cache_is_fresh and not force:
+        return
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT LOWER(username), password_hash FROM users")
+        rows = cursor.fetchall()
+
+        updated_cache = {}
+        for row in rows:
+            username = row[0]
+            password_hash = row[1]
+            if username in ALLOWED_USER_EMAILS:
+                updated_cache[username] = password_hash
+
+        auth_password_cache = updated_cache
+        auth_password_cache_loaded_at = now
+    except Exception as exc:
+        logger.warning(f"Auth cache refresh failed: {exc}")
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+        except:
+            pass
+        try:
+            if connection:
+                connection.close()
+        except:
+            pass
+
+
+def get_cached_password_hash(email: str) -> Optional[str]:
+    refresh_auth_password_cache(force=False)
+    password_hash = auth_password_cache.get(email)
+    if password_hash:
+        return password_hash
+
+    # Retry once with forced refresh so newly seeded users can log in immediately.
+    refresh_auth_password_cache(force=True)
+    return auth_password_cache.get(email)
 
 
 def normalize_serial(value: Optional[str]) -> Optional[str]:
@@ -165,6 +225,7 @@ def startup_event():
         connection.commit()
         cursor.close()
         connection.close()
+        refresh_auth_password_cache(force=True)
         logger.info("Database initialization completed on startup")
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
@@ -394,32 +455,15 @@ def register(request: Request, credentials: UserCredentials):
 def login(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
     ensure_email_is_allowed(email)
-    connection = get_connection()  # Uses connection pool now (fast!)
-    cursor = connection.cursor()
-    
-    try:
-        cursor.execute(
-            "SELECT password_hash FROM users WHERE LOWER(username) = ?",
-            (email,)
-        )
-        row = cursor.fetchone()
-        
-        if not row or not pwd_context.verify(credentials.password, row[0]):
-            logger.warning(f"Failed login attempt: {email[:10]}...")
-            raise HTTPException(status_code=401, detail="Ungültiger Login")
-        
-        token = create_token(email)
-        logger.info(f"User logged in: {email[:10]}...")
-        return {"access_token": token, "token_type": "bearer", "username": email}
-    finally:
-        try:
-            cursor.close()
-        except:
-            pass
-        try:
-            connection.close()
-        except:
-            pass
+    password_hash = get_cached_password_hash(email)
+
+    if not password_hash or not pwd_context.verify(credentials.password, password_hash):
+        logger.warning(f"Failed login attempt: {email[:10]}...")
+        raise HTTPException(status_code=401, detail="Ungültiger Login")
+
+    token = create_token(email)
+    logger.info(f"User logged in: {email[:10]}...")
+    return {"access_token": token, "token_type": "bearer", "username": email}
 
 
 @app.get("/api/inventar")

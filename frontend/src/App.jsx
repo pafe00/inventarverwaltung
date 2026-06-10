@@ -97,6 +97,28 @@ function loadArraySetting(key, fallbackValue = []) {
   }
 }
 
+function toApiErrorMessage(detail, fallback) {
+  if (!detail) return fallback
+  if (typeof detail === "string") return detail
+
+  if (Array.isArray(detail)) {
+    const first = detail[0]
+    if (typeof first === "string") return first
+    if (first && typeof first === "object") {
+      if (typeof first.msg === "string") return first.msg
+      if (Array.isArray(first.loc)) return `${first.loc.join(".")}: ungültiger Wert`
+    }
+    return fallback
+  }
+
+  if (typeof detail === "object") {
+    if (typeof detail.msg === "string") return detail.msg
+    if (typeof detail.message === "string") return detail.message
+  }
+
+  return fallback
+}
+
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem("token") || "")
   const [username, setUsername] = useState(() => localStorage.getItem("username") || "")
@@ -473,7 +495,7 @@ export default function App() {
       try {
         const payload = await res.json()
         if (payload?.detail) {
-          reason = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail)
+          reason = toApiErrorMessage(payload.detail, reason)
         }
       } catch {
         // Response is not JSON; keep status as fallback
