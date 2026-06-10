@@ -125,6 +125,10 @@ DEFAULT_CORS_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:4173",
     "http://127.0.0.1:4173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
 ]
 cors_origins_raw = os.getenv("CORS_ALLOW_ORIGINS", "")
 allowed_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
@@ -761,7 +765,7 @@ def get_dashboard():
     verfuegbar = cursor.fetchone()[0]
 
     cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'Im Einsatz'")
-    Im Einsatz = cursor.fetchone()[0]
+    im_einsatz = cursor.fetchone()[0]
 
     cursor.execute("SELECT COUNT(*) FROM inventar WHERE status = 'defekt'")
     defekt = cursor.fetchone()[0]
@@ -771,7 +775,7 @@ def get_dashboard():
     return {
         "gesamt": gesamt,
         "verfügbar": verfuegbar,
-        "Im Einsatz": Im Einsatz,
+        "Im Einsatz": im_einsatz,
         "defekt": defekt
     }
 
