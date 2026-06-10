@@ -1,20 +1,30 @@
 import { useState, useEffect } from "react"
-import { LogIn, UserPlus, Package } from "lucide-react"
+import { LogIn, Package } from "lucide-react"
 
 const configuredApiUrl = (import.meta.env.VITE_API_URL || "").trim()
 const isLocalHost =
   typeof window !== "undefined" &&
   ["localhost", "127.0.0.1"].includes(window.location.hostname)
 const API_URL = (configuredApiUrl || (isLocalHost ? "http://localhost:8000" : "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net")).replace(/\/$/, "")
-const ALLOWED_EMAIL_DOMAIN = "edu.teko.ch"
+const ALLOWED_USER_EMAILS = new Set([
+  "bleart.azemi@edu.teko.ch",
+  "daniel.petrovic@edu.teko.ch",
+  "dorian.fuchs@edu.teko.ch",
+  "eloy.figueroadelacruz@edu.teko.ch",
+  "emanuel.wullschleger@edu.teko.ch",
+  "felizian.strub@edu.teko.ch",
+  "ilara.pignatella@edu.teko.ch",
+  "marc.schneider@edu.teko.ch",
+  "marius.hummel@edu.teko.ch",
+  "nicola.walker@edu.teko.ch",
+  "noel.hauser@edu.teko.ch",
+  "patrick.feuz@edu.teko.ch",
+  "suban.zuber@edu.teko.ch",
+])
 
 function isValidTekoEmail(value) {
   const email = value.trim().toLowerCase()
-  return /^[^@\s]+@edu\.teko\.ch$/.test(email)
-}
-
-function isStrongPassword(value) {
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/.test(value)
+  return /^[^@\s]+@edu\.teko\.ch$/.test(email) && ALLOWED_USER_EMAILS.has(email)
 }
 
 function toErrorMessage(detail, fallback) {
@@ -42,11 +52,9 @@ function toErrorMessage(detail, fallback) {
 }
 
 export default function LoginPage({ onLogin }) {
-  const [mode, setMode] = useState("login")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
   const [loading, setLoading] = useState(false)
 
   // Force-reset page styling when LoginPage mounts
@@ -62,23 +70,16 @@ export default function LoginPage({ onLogin }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError("")
-    setSuccess("")
 
     if (!isValidTekoEmail(username)) {
-      setError(`Nur E-Mail-Adressen mit @${ALLOWED_EMAIL_DOMAIN} sind erlaubt`)
-      return
-    }
-
-    if (mode === "register" && !isStrongPassword(password)) {
-      setError("Passwort muss mindestens 8 Zeichen haben sowie Gross-/Kleinbuchstaben und 1 Sonderzeichen enthalten")
+      setError("Diese E-Mail-Adresse ist für Inventarverwaltung nicht freigeschaltet")
       return
     }
 
     setLoading(true)
     try {
       const normalizedEmail = username.trim().toLowerCase()
-      const endpoint = mode === "login" ? "/api/login" : "/api/register"
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_URL}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: normalizedEmail, password }),
@@ -95,13 +96,6 @@ export default function LoginPage({ onLogin }) {
 
       if (!res.ok) {
         setError(toErrorMessage(data?.detail, `Serverfehler (${res.status})`))
-        return
-      }
-      if (mode === "register") {
-        setMode("login")
-        setSuccess("Registrierung erfolgreich. Bitte jetzt anmelden.")
-        setUsername(normalizedEmail)
-        setPassword("")
         return
       }
 
@@ -135,31 +129,11 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           <div className="authCard">
-            <div className="modeSwitch" role="tablist" aria-label="Anmelde-Modus">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("login")
-                  setError("")
-                  setSuccess("")
-                }}
-                className={mode === "login" ? "modeBtn active" : "modeBtn"}
-              >
+            <div className="modeSwitch" aria-label="Anmelde-Modus">
+              <div className="modeBtn active">
                 <LogIn size={16} />
                 Anmelden
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("register")
-                  setError("")
-                  setSuccess("")
-                }}
-                className={mode === "register" ? "modeBtn active" : "modeBtn"}
-              >
-                <UserPlus size={16} />
-                Registrieren
-              </button>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="authForm">
@@ -184,23 +158,16 @@ export default function LoginPage({ onLogin }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={mode === "register" ? 8 : 1}
-                  pattern={mode === "register" ? "^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$" : undefined}
-                  title={mode === "register" ? "Mindestens 8 Zeichen mit Gross-/Kleinbuchstaben und 1 Sonderzeichen" : undefined}
+                  minLength={1}
                   placeholder="••••••••"
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  autoComplete="current-password"
                 />
               </label>
 
               {error && <p className="msg error">{error}</p>}
-              {success && <p className="msg success">{success}</p>}
 
               <button type="submit" disabled={loading} className="submitBtn">
-                {loading
-                  ? "Bitte warten..."
-                  : mode === "login"
-                    ? "Anmelden"
-                    : "Registrieren"}
+                {loading ? "Bitte warten..." : "Anmelden"}
               </button>
             </form>
           </div>

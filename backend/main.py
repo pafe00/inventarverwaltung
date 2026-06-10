@@ -15,6 +15,7 @@ import pyodbc
 import os
 import re
 import logging
+from allowed_users import ALLOWED_USER_EMAILS
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO)
@@ -64,6 +65,14 @@ def normalize_teko_email(value: str) -> str:
             detail=f"Nur E-Mail-Adressen mit @{ALLOWED_EMAIL_DOMAIN} sind erlaubt"
         )
     return email
+
+
+def ensure_email_is_allowed(email: str) -> None:
+    if email not in ALLOWED_USER_EMAILS:
+        raise HTTPException(
+            status_code=403,
+            detail="Diese E-Mail-Adresse ist für Inventarverwaltung nicht freigeschaltet"
+        )
 
 
 def validate_password_strength(value: str) -> None:
@@ -374,46 +383,17 @@ def root():
 @app.post("/api/register")
 @limiter.limit("15/15 minutes")
 def register(request: Request, credentials: UserCredentials):
-    email = normalize_teko_email(credentials.username)
-    validate_password_strength(credentials.password)
-    
-    connection = get_connection()
-    cursor = connection.cursor()
-    
-    try:
-        cursor.execute("SELECT id FROM users WHERE LOWER(username) = ?", (email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="User existiert bereits")
-        
-        hashed = pwd_context.hash(credentials.password)
-        cursor.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (email, hashed)
-        )
-        connection.commit()
-        logger.info(f"User registriert: {email[:10]}...")
-        return {"message": "Registrierung erfolgreich"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        connection.rollback()
-        logger.error(f"Register error: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=400, detail="Registrierung fehlgeschlagen")
-    finally:
-        try:
-            cursor.close()
-        except:
-            pass
-        try:
-            connection.close()
-        except:
-            pass
+    raise HTTPException(
+        status_code=403,
+        detail="Registrierung ist deaktiviert. Bitte Admin kontaktieren."
+    )
 
 
 @app.post("/api/login")
 @limiter.limit("15/15 minutes")
 def login(request: Request, credentials: UserCredentials):
     email = normalize_teko_email(credentials.username)
+    ensure_email_is_allowed(email)
     connection = get_connection()  # Uses connection pool now (fast!)
     cursor = connection.cursor()
     

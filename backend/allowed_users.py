@@ -1,0 +1,15 @@
+ALLOWED_USER_EMAILS = {
+    "bleart.azemi@edu.teko.ch",
+    "daniel.petrovic@edu.teko.ch",
+    "dorian.fuchs@edu.teko.ch",
+    "eloy.figueroadelacruz@edu.teko.ch",
+    "emanuel.wullschleger@edu.teko.ch",
+    "felizian.strub@edu.teko.ch",
+    "ilara.pignatella@edu.teko.ch",
+    "marc.schneider@edu.teko.ch",
+    "marius.hummel@edu.teko.ch",
+    "nicola.walker@edu.teko.ch",
+    "noel.hauser@edu.teko.ch",
+    "patrick.feuz@edu.teko.ch",
+    "suban.zuber@edu.teko.ch",
+}
