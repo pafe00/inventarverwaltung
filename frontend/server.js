@@ -9,25 +9,30 @@ const app = express()
 const port = process.env.PORT || 8080
 const backendUrl = (process.env.BACKEND_URL || 'https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net').replace(/\/$/, '')
 
-app.use('/api', express.raw({ type: '*/*', limit: '1mb' }))
+app.use('/api', express.json({ limit: '1mb' }))
 app.use('/api', async (req, res) => {
   try {
     const targetUrl = `${backendUrl}${req.originalUrl}`
+
     const headers = { ...req.headers }
     delete headers.host
     delete headers.connection
     delete headers['content-length']
 
     const hasBody = !['GET', 'HEAD'].includes(req.method)
+
     const upstreamRes = await fetch(targetUrl, {
       method: req.method,
       headers,
-      body: hasBody ? req.body : undefined,
+      body: hasBody ? JSON.stringify(req.body) : undefined,
     })
 
     res.status(upstreamRes.status)
+
     upstreamRes.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'transfer-encoding') return
+      const lowerKey = key.toLowerCase()
+      if (lowerKey === 'transfer-encoding') return
+      if (lowerKey === 'content-encoding') return
       res.setHeader(key, value)
     })
 
