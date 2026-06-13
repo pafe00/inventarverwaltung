@@ -7,11 +7,7 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import LoginPage from "./LoginPage"
 
-const configuredApiUrl = (import.meta.env.VITE_API_URL || "").trim()
-const isLocalHost =
-  typeof window !== "undefined" &&
-  ["localhost", "127.0.0.1"].includes(window.location.hostname)
-const API_URL = (configuredApiUrl || (isLocalHost ? "http://localhost:8000" : "https://inventarwebapp-linux-ejb2a7cpcdchhpg9.germanywestcentral-01.azurewebsites.net")).replace(/\/$/, "")
+const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "")
 
 const TEKO_STANDORTE = ["Luzern", "Bern", "Basel", "Zürich", "Olten"]
 

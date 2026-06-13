@@ -433,12 +433,7 @@ class UserCredentials(BaseModel):
 
 @app.get("/")
 def root():
-    return {
-        "service": "Inventarverwaltung API",
-        "status": "online",
-        "message": "Backend der Inventarverwaltung läuft.",
-        "access": "API-Zugriff ist nur für das autorisierte Frontend vorgesehen."
-    }
+    return {"status": "ok"}
 
 
 @app.post("/api/register")
@@ -469,30 +464,85 @@ def login(request: Request, credentials: UserCredentials):
 @app.get("/api/inventar")
 @limiter.limit("30/15 minutes")
 def get_inventar(request: Request, username: str = Depends(verify_token)):
-    connection = get_connection()
-    cursor = connection.cursor()
+    connection = None
+    cursor = None
 
-    cursor.execute("""
-        SELECT
-            id,
-            name,
-            kategorie,
-            hersteller,
-            seriennummer,
-            standort,
-            status,
-            bemerkung
-        FROM inventar
-        ORDER BY id
-    """)
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
 
-    rows = cursor.fetchall()
-    connection.close()
+        cursor.execute("""
+            SELECT
+                id,
+                name,
+                kategorie,
+                hersteller,
+                seriennummer,
+                standort,
+                status,
+                bemerkung
+            FROM inventar
+            ORDER BY id
+        """)
 
-    inventar = []
+        rows = cursor.fetchall()
 
-    for row in rows:
-        inventar.append({
+        inventar = []
+
+        for row in rows:
+            inventar.append({
+                "id": row[0],
+                "name": row[1],
+                "kategorie": row[2],
+                "hersteller": row[3],
+                "seriennummer": row[4],
+                "standort": row[5],
+                "status": row[6],
+                "bemerkung": row[7]
+            })
+
+        return inventar
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+@app.get("/api/inventar/{item_id}")
+@limiter.limit("30/15 minutes")
+def get_item(request: Request, item_id: int, username: str = Depends(verify_token)):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            SELECT
+                id,
+                name,
+                kategorie,
+                hersteller,
+                seriennummer,
+                standort,
+                status,
+                bemerkung
+            FROM inventar
+            WHERE id = ?
+        """, (item_id,))
+
+        row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Gerät nicht gefunden"
+            )
+
+        return {
             "id": row[0],
             "name": row[1],
             "kategorie": row[2],
@@ -501,50 +551,13 @@ def get_inventar(request: Request, username: str = Depends(verify_token)):
             "standort": row[5],
             "status": row[6],
             "bemerkung": row[7]
-        })
+        }
 
-    return inventar
-
-
-@app.get("/api/inventar/{item_id}")
-@limiter.limit("30/15 minutes")
-def get_item(request: Request, item_id: int, username: str = Depends(verify_token)):
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            name,
-            kategorie,
-            hersteller,
-            seriennummer,
-            standort,
-            status,
-            bemerkung
-        FROM inventar
-        WHERE id = ?
-    """, (item_id,))
-
-    row = cursor.fetchone()
-    connection.close()
-
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail="Gerät nicht gefunden"
-        )
-
-    return {
-        "id": row[0],
-        "name": row[1],
-        "kategorie": row[2],
-        "hersteller": row[3],
-        "seriennummer": row[4],
-        "standort": row[5],
-        "status": row[6],
-        "bemerkung": row[7]
-    }
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 @app.post("/api/inventar")
@@ -778,7 +791,8 @@ def get_activity(request: Request, limit: int = Query(default=25, ge=1, le=100),
 
 
 @app.get("/api/dashboard")
-def get_dashboard():
+@limiter.limit("30/15 minutes")
+def get_dashboard(request: Request, username: str = Depends(verify_token)):
     connection = get_connection()
     cursor = connection.cursor()
 
