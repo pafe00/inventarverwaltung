@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { LogIn, Package } from "lucide-react"
+import { Package } from "lucide-react"
 
 const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "")
 const ALLOWED_USER_EMAILS = new Set([
@@ -125,13 +125,6 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           <div className="authCard">
-            <div className="modeSwitch" aria-label="Anmelde-Modus">
-              <div className="modeBtn active">
-                <LogIn size={16} />
-                Anmelden
-              </div>
-            </div>
-
             <form onSubmit={handleSubmit} className="authForm">
               <label>
                 <span>TEKO E-Mail</span>
@@ -261,39 +254,6 @@ const css = `
   box-shadow: 0 24px 48px rgba(15, 23, 42, .12);
 }
 
-.modeSwitch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.modeBtn {
-  height: 44px;
-  border: 1px solid rgba(15, 23, 42, .1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, .65);
-  color: #334155;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: all .18s ease;
-}
-
-.modeBtn:hover {
-  transform: translateY(-1px);
-}
-
-.modeBtn.active {
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 12px 26px rgba(2, 132, 199, .33);
-}
-
 .authForm {
   display: grid;
   gap: 12px;
@@ -380,10 +340,6 @@ const css = `
   .authCard {
     border-radius: 18px;
     padding: 14px;
-  }
-
-  .modeBtn {
-    font-size: 14px;
   }
 }
 `
